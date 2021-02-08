@@ -1,0 +1,11 @@
+README.md
+setup.cfg
+setup.py
+maist_model_core.egg-info/PKG-INFO
+maist_model_core.egg-info/SOURCES.txt
+maist_model_core.egg-info/dependency_links.txt
+maist_model_core.egg-info/not-zip-safe
+maist_model_core.egg-info/requires.txt
+maist_model_core.egg-info/top_level.txt
+model/__init__.py
+model/core.py

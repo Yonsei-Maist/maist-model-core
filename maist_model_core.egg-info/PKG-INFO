@@ -1,0 +1,13 @@
+Metadata-Version: 1.2
+Name: maist-model-core
+Version: 1.0
+Summary: main core of machine learning module by Yonsei MAIST
+Home-page: https://github.com/Yonsei-Maist/ABR-image-processor.git
+Author: Chanwoo Gwon
+Author-email: arknell@yonsei.ac.kr
+License: UNKNOWN
+Description: UNKNOWN
+Keywords: ai,tensorflow
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3.7
+Requires-Python: >=3
