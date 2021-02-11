@@ -104,6 +104,8 @@ class Net:
         self._base_path = base_path
         self._model_core = model_core
 
+        self._model_core.read_data()
+
     def get_value_train_step(self, label_val, predict_index):
         """
         overload if you want to calculate other
