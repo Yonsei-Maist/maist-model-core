@@ -64,12 +64,12 @@ class LossFunction:
 
 class ModelCore:
     def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss=LOSS.CATEGORICAL_CROSSENTROPY):
-        self.__train_data = None
-        self.__test_data = None
+        self._train_data = None
+        self._test_data = None
         self.model = None
         self.iter = None
-        self.__data_path = data_path
-        self.__batch_size = batch_size
+        self._data_path = data_path
+        self._batch_size = batch_size
         self.avg_logger = AvgLogger(avg_list)
         self.loss_function = LossFunction(loss)
 
@@ -101,8 +101,8 @@ class Net:
         :param model_core: ModelCore instance
         """
         self.name = module_name
-        self.__base_path = base_path
-        self.__model_core = model_core
+        self._base_path = base_path
+        self._model_core = model_core
 
     def get_value_train_step(self, label_val, predict_index):
         """
@@ -114,15 +114,15 @@ class Net:
         return []
 
     def train(self, epoch=10000, lr=0.001):
-        self.__model_core.build_model()
-        model = self.__model_core.model
-        iter = self.__model_core.iter
+        self._model_core.build_model()
+        model = self._model_core.model
+        iter = self._model_core.iter
         optimizer = tf.keras.optimizers.Adam(lr=lr)
 
-        train_data = self.__model_core.get_train_data()
+        train_data = self._model_core.get_train_data()
 
         for i in range(epoch):
-            self.__model_core.avg_logger.refresh()
+            self._model_core.avg_logger.refresh()
 
             for j in range(iter):
                 inputs = train_data[0]
@@ -130,7 +130,7 @@ class Net:
 
                 with tf.GradientTape() as tape:
                     outputs = model(inputs, training=True)
-                    loss = self.__model_core.loss_function.calculate(labels, outputs, axis=1)
+                    loss = self._model_core.loss_function.calculate(labels, outputs, axis=1)
 
                     predict_index = tf.math.argmax(outputs, 1)
 
@@ -140,32 +140,32 @@ class Net:
 
                 grads = tape.gradient(loss, model.trainable_variables)  # calculate gradients
                 optimizer.apply_gradients(zip(grads, model.trainable_variables))  # update gradients
-                self.__model_core.avg_logger.update_state([loss] + values)
+                self._model_core.avg_logger.update_state([loss] + values)
 
-            log_result = self.__model_core.avg_logger.result()
+            log_result = self._model_core.avg_logger.result()
             print('Epoch: {} {}'.format(i, log_result))
 
             # save weight every 100 epochs
             if i % 100 == 0 and i != 0:
-                model.save_weights(os.path.join(self.__base_path,
+                model.save_weights(os.path.join(self._base_path,
                                                 './checkpoints/{}_{}.tf'.format(self.name, i)))
 
     def test(self, index):
-        self.__model_core.build_model()
-        self.__model_core.model.load_weights(os.path.join(self.__base_path,
+        self._model_core.build_model()
+        self._model_core.model.load_weights(os.path.join(self._base_path,
                                                           './checkpoints/{}_{}.tf'.format(self.name, index)))
 
-        model = self.__model_core.model
-        iter = self.__model_core.iter
-        test_data = self.__model_core.get_test_data()
+        model = self._model_core.model
+        iter = self._model_core.iter
+        test_data = self._model_core.get_test_data()
 
-        self.__model_core.avg_logger.refresh()
+        self._model_core.avg_logger.refresh()
         all_outputs = []
         for j in range(iter):
             inputs = test_data[0]
             labels = test_data[1]
             outputs = model(inputs, training=False)
-            loss = self.__model_core.loss_function.calculate(labels, outputs, axis=1)
+            loss = self._model_core.loss_function.calculate(labels, outputs, axis=1)
 
             predict_index = tf.math.argmax(outputs, 1)
 
@@ -173,19 +173,19 @@ class Net:
 
             values = self.get_value_train_step(predict_index, label_val)
 
-            self.__model_core.avg_logger.update_state([loss] + values)
+            self._model_core.avg_logger.update_state([loss] + values)
 
             all_outputs.extend(outputs)
 
-        log_result = self.__model_core.avg_logger.result_value()
+        log_result = self._model_core.avg_logger.result_value()
 
         model.reset_states()
 
         return log_result
 
     def predict(self, index, data):
-        self.__model_core.build_model()
-        self.__model_core.model.load_weights(os.path.join(self.__base_path,
+        self._model_core.build_model()
+        self._model_core.model.load_weights(os.path.join(self._base_path,
                                                           './checkpoints/{}_{}.tf'.format(self.name, index)))
 
-        return self.__model_core.model(data, training=False)
+        return self._model_core.model(data, training=False)
