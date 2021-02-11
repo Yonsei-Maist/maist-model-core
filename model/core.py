@@ -140,11 +140,11 @@ class Net:
         self._base_path = base_path
         self._model_core = model_core
 
-    def get_value_train_step(self, label_val, predict_index):
+    def get_value_train_step(self, outputs, labels):
         """
         overload if you want to calculate other
-        :param label_val: values of label (real answer)
-        :param predict_index: predict value from model
+        :param outputs: predict value from model
+        :param labels: values of label (real answer)
         :return: calculated values list
         """
         return []
@@ -169,11 +169,7 @@ class Net:
                     outputs = model(inputs, training=True)
                     loss = self._model_core.loss_function.calculate(labels, outputs, axis=1)
 
-                    predict_index = tf.math.argmax(outputs, 1)
-
-                    label_val = tf.math.argmax(labels, 1)
-
-                values = self.get_value_train_step(predict_index, label_val)
+                values = self.get_value_train_step(outputs, labels)
 
                 grads = tape.gradient(loss, model.trainable_variables)  # calculate gradients
                 optimizer.apply_gradients(zip(grads, model.trainable_variables))  # update gradients
