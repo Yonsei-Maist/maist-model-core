@@ -76,6 +76,12 @@ class ModelCore:
         self.read_data()
         self.build_model()
 
+    def check_integer_string(self, int_value):
+        try:
+            return int(int_value)
+        except ValueError as e:
+            return -1
+
     def get_train_data(self):
         return [None, None]
 
@@ -97,12 +103,6 @@ class Net:
         self.name = module_name
         self.__base_path = base_path
         self.__model_core = model_core
-
-    def check_integer_string(self, int_value):
-        try:
-            return int(int_value)
-        except ValueError as e:
-            return -1
 
     def get_value_train_step(self, label_val, predict_index):
         """
