@@ -1,6 +1,6 @@
 import tensorflow as tf
 from enum import Enum
-import matplotlib.pyplot as plt
+import math
 import os
 
 
@@ -67,9 +67,8 @@ class ModelCore:
         self._train_data = None
         self._test_data = None
         self.model = None
-        self.iter = None
+        self.batch_size = batch_size
         self._data_path = data_path
-        self._batch_size = batch_size
         self.avg_logger = AvgLogger(avg_list)
         self.loss_function = LossFunction(loss)
 
@@ -83,10 +82,10 @@ class ModelCore:
             return -1
 
     def get_train_data(self):
-        return [None, None]
+        return [[], []]
 
     def get_test_data(self):
-        return [None, None]
+        return [[], []]
 
     def build_model(self):
         pass
@@ -116,17 +115,18 @@ class Net:
     def train(self, epoch=10000, lr=0.001):
         self._model_core.build_model()
         model = self._model_core.model
-        iter = self._model_core.iter
+        batch_size = self._model_core.batch_size
         optimizer = tf.keras.optimizers.Adam(lr=lr)
 
         train_data = self._model_core.get_train_data()
+        iter = math.ceil(len(train_data[0]) / batch_size)
 
         for i in range(epoch):
             self._model_core.avg_logger.refresh()
 
             for j in range(iter):
-                inputs = train_data[0]
-                labels = train_data[1]
+                inputs = train_data[0][j * batch_size: j * batch_size + batch_size]
+                labels = train_data[1][j * batch_size: j * batch_size + batch_size]
 
                 with tf.GradientTape() as tape:
                     outputs = model(inputs, training=True)
