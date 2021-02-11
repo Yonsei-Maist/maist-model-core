@@ -2,6 +2,8 @@ import tensorflow as tf
 from enum import Enum
 import math
 import os
+from abc import *
+import random
 
 
 class LOSS(Enum):
@@ -62,10 +64,43 @@ class LossFunction:
         return self.__lambda(labels, outputs, axis)
 
 
-class ModelCore:
+class Dataset:
+    def __init__(self, batch_size):
+        self.__inputs = None
+        self.__labels = None
+        self.__batch_size = batch_size
+
+    def set(self, inputs, labels):
+        len_input = -1
+        for i in range(len(inputs)):
+            if i == 0:
+                len_input = len(inputs[i])
+            elif len_input != len(inputs[i]):
+                raise Exception("Doesn't match a length of all inputs")
+
+        for i in range(len(labels)):
+            if len_input != len(labels[i]):
+                raise Exception("Doesn't match between the length of inputs and a length of labels")
+
+        self.__inputs = inputs
+        self.__labels = labels
+
+    def get(self):
+        i = 0
+        yield [item[i * self.__batch_size, i * self.__batch_size + self.__batch_size] for item in self.__inputs], \
+              [item[i * self.__batch_size, i * self.__batch_size + self.__batch_size] for item in self.__labels]
+
+    def __len__(self):
+        if len(self.__inputs) > 0:
+            return len(self.__inputs[0])
+
+        return 0
+
+
+class ModelCore(metaclass=ABCMeta):
     def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss=LOSS.CATEGORICAL_CROSSENTROPY):
-        self._train_data = None
-        self._test_data = None
+        self._train_data = Dataset(batch_size)
+        self._test_data = Dataset(batch_size)
         self.model = None
         self.batch_size = batch_size
         self._data_path = data_path
@@ -87,9 +122,11 @@ class ModelCore:
     def get_test_data(self):
         return self._test_data
 
+    @abstractmethod
     def build_model(self):
         pass
 
+    @abstractmethod
     def read_data(self):
         pass
 
@@ -119,14 +156,14 @@ class Net:
         optimizer = tf.keras.optimizers.Adam(lr=lr)
 
         train_data = self._model_core.get_train_data()
-        iter = math.ceil(len(train_data[0]) / batch_size)
 
         for i in range(epoch):
             self._model_core.avg_logger.refresh()
+            gen = list(train_data.get())
 
-            for j in range(iter):
-                inputs = train_data[0][j * batch_size: j * batch_size + batch_size]
-                labels = train_data[1][j * batch_size: j * batch_size + batch_size]
+            for data in gen:
+                inputs = data[0]
+                labels = data[1]
 
                 with tf.GradientTape() as tape:
                     outputs = model(inputs, training=True)
