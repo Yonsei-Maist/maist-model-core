@@ -87,8 +87,8 @@ class Dataset:
 
     def get(self):
         i = 0
-        yield [item[i * self.__batch_size, i * self.__batch_size + self.__batch_size] for item in self.__inputs], \
-              [item[i * self.__batch_size, i * self.__batch_size + self.__batch_size] for item in self.__labels]
+        yield [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in self.__inputs], \
+              [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in self.__labels]
 
     def __len__(self):
         if len(self.__inputs) > 0:
