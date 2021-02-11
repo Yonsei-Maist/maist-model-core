@@ -86,13 +86,14 @@ class Dataset:
         self.__labels = labels
 
     def get(self):
-        i = 0
-        if len(self.__labels) == 1:
-            yield [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in self.__inputs], \
-                  self.__labels[0][i * self.__batch_size: i * self.__batch_size + self.__batch_size]
-        else:
-            yield [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in self.__inputs], \
-                  [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in self.__labels]
+        iter = math.ceil(len(self) / self.__batch_size)
+        for i in range(iter):
+            if len(self.__labels) == 1:
+                yield [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in self.__inputs], \
+                      self.__labels[0][i * self.__batch_size: i * self.__batch_size + self.__batch_size]
+            else:
+                yield [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in self.__inputs], \
+                      [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in self.__labels]
 
     def __len__(self):
         if len(self.__inputs) > 0:
