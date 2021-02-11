@@ -82,10 +82,10 @@ class ModelCore:
             return -1
 
     def get_train_data(self):
-        return [[], []]
+        return self._train_data
 
     def get_test_data(self):
-        return [[], []]
+        return self._test_data
 
     def build_model(self):
         pass
