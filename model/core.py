@@ -3,7 +3,6 @@ from enum import Enum
 import math
 import os
 from abc import *
-import random
 
 
 class LOSS(Enum):
@@ -157,7 +156,6 @@ class Net:
     def train(self, epoch=10000, lr=0.001):
         self._model_core.build_model()
         model = self._model_core.model
-        batch_size = self._model_core.batch_size
         optimizer = tf.keras.optimizers.Adam(lr=lr)
 
         train_data = self._model_core.get_train_data()
@@ -191,25 +189,21 @@ class Net:
     def test(self, index):
         self._model_core.build_model()
         self._model_core.model.load_weights(os.path.join(self._base_path,
-                                                          './checkpoints/{}_{}.tf'.format(self.name, index)))
+                                                         './checkpoints/{}_{}.tf'.format(self.name, index)))
 
         model = self._model_core.model
-        iter = self._model_core.iter
         test_data = self._model_core.get_test_data()
 
         self._model_core.avg_logger.refresh()
         all_outputs = []
-        for j in range(iter):
-            inputs = test_data[0]
-            labels = test_data[1]
+        gen = list(test_data.get())
+        for data in gen:
+            inputs = data[0]
+            labels = data[1]
             outputs = model(inputs, training=False)
             loss = self._model_core.loss_function.calculate(labels, outputs, axis=1)
 
-            predict_index = tf.math.argmax(outputs, 1)
-
-            label_val = tf.math.argmax(labels, 1)
-
-            values = self.get_value_train_step(predict_index, label_val)
+            values = self.get_value_train_step(outputs, labels)
 
             self._model_core.avg_logger.update_state([loss] + values)
 
@@ -219,11 +213,11 @@ class Net:
 
         model.reset_states()
 
-        return log_result
+        return log_result, all_outputs
 
     def predict(self, index, data):
         self._model_core.build_model()
         self._model_core.model.load_weights(os.path.join(self._base_path,
-                                                          './checkpoints/{}_{}.tf'.format(self.name, index)))
+                                                         './checkpoints/{}_{}.tf'.format(self.name, index)))
 
         return self._model_core.model(data, training=False)
