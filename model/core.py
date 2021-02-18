@@ -153,9 +153,11 @@ class Net:
         """
         return []
 
-    def save_when(self):
+    def save_when(self, epoch, result_values):
         """
         save condition
+        :param epoch: current epoch
+        :param result_values: current loss and logger result value
         :return: true or false
         """
         return True
@@ -189,7 +191,7 @@ class Net:
             print('Epoch: {} {}'.format(i, log_result))
 
             # save weight every 100 epochs
-            if (i % 100 == 0 and i != 0) or self.save_when():
+            if (i % 100 == 0 and i != 0) or self.save_when(i, self._model_core.avg_logger.result_value()):
                 model.save_weights(os.path.join(self._base_path,
                                                 './checkpoints/{}_{}.tf'.format(self.name, i)))
 
