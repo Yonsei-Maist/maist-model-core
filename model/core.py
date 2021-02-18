@@ -153,6 +153,13 @@ class Net:
         """
         return []
 
+    def save_when(self):
+        """
+        save condition
+        :return: true or false
+        """
+        return True
+
     def train(self, epoch=10000, lr=0.001):
         self._model_core.build_model()
         model = self._model_core.model
@@ -182,7 +189,7 @@ class Net:
             print('Epoch: {} {}'.format(i, log_result))
 
             # save weight every 100 epochs
-            if i % 100 == 0 and i != 0:
+            if (i % 100 == 0 and i != 0) or self.save_when():
                 model.save_weights(os.path.join(self._base_path,
                                                 './checkpoints/{}_{}.tf'.format(self.name, i)))
 
@@ -221,3 +228,21 @@ class Net:
                                                          './checkpoints/{}_{}.tf'.format(self.name, index)))
 
         return self._model_core.model(data, training=False)
+
+    def get_test_result(self, index):
+
+        avg_loss, res = self.test(index)  # means test all of data using {index}'th checkpoint
+
+        ldl_c_d_for_graph = []
+        data_for_graph = []
+        for i in range(len(res)):
+            predict_index = int(tf.math.argmax(res[i]))
+            ldl_c_d_for_graph.append(predict_index)
+
+        gen = list(self._model_core.get_test_data().get())
+
+        for data in gen:
+            for i in range(len(data[1])):
+                data_for_graph.append(int(tf.math.argmax(data[1][i])))
+
+        return data_for_graph, ldl_c_d_for_graph
