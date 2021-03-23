@@ -7,9 +7,7 @@ setup(
     author           = 'Chanwoo Gwon',
     author_email     = 'arknell@yonsei.ac.kr',
     url              = 'https://github.com/Yonsei-Maist/ABR-image-processor.git',
-    install_requires = [
-        "tensorflow>=2.3"
-    ],
+    install_requires = [],
     packages         = find_packages(exclude = ['docs', 'tests*']),
     keywords         = ['ai', 'tensorflow'],
     python_requires  = '>=3',
