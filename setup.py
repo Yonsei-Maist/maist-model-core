@@ -8,7 +8,7 @@ setup(
     author_email     = 'arknell@yonsei.ac.kr',
     url              = 'https://github.com/Yonsei-Maist/ABR-image-processor.git',
     install_requires = [
-        "tensorflow>=2.4"
+        "tensorflow>=2.3"
     ],
     packages         = find_packages(exclude = ['docs', 'tests*']),
     keywords         = ['ai', 'tensorflow'],
