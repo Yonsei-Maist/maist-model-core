@@ -60,16 +60,24 @@ class LossFunction:
                                                                                                    axis)
 
     def calculate(self, labels, outputs, axis):
-        return self.__lambda(labels, outputs, axis)
+        if isinstance(labels, list):
+            result = []
+            for i in range(len(labels)):
+                result.append(self.__lambda(labels[i], outputs[i], axis))
+            print(result)
+            return result
+        else:
+            return self.__lambda(labels, outputs, axis)
 
 
 class Dataset:
     def __init__(self, batch_size):
         self.__inputs = None
         self.__labels = None
+        self.__origins = None
         self.__batch_size = batch_size
 
-    def set(self, inputs, labels):
+    def set(self, inputs, labels, origin_file=None):
         len_input = -1
         for i in range(len(inputs)):
             if i == 0:
@@ -83,16 +91,27 @@ class Dataset:
 
         self.__inputs = inputs
         self.__labels = labels
+        self.__origins = origin_file
 
     def get(self):
         iter = math.ceil(len(self) / self.__batch_size)
         for i in range(iter):
             if len(self.__labels) == 1:
-                yield [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in self.__inputs], \
+                yield [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in
+                       self.__inputs], \
                       self.__labels[0][i * self.__batch_size: i * self.__batch_size + self.__batch_size]
             else:
-                yield [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in self.__inputs], \
+                yield [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in
+                       self.__inputs], \
                       [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in self.__labels]
+
+    def get_origin(self):
+        if (self.__origins == None):
+            raise Exception("the origin file is empty")
+
+        iter = math.ceil(len(self) / self.__batch_size)
+        for i in range(iter):
+            yield self.__origins[i * self.__batch_size: i * self.__batch_size + self.__batch_size]
 
     def __len__(self):
         if len(self.__inputs) > 0:
@@ -102,6 +121,12 @@ class Dataset:
 
 
 class ModelCore(metaclass=ABCMeta):
+
+    def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss_list=[LOSS.CATEGORICAL_CROSSENTROPY]):
+        self._loss_function_list = [LossFunction(loss) for loss in loss_list]
+        self.__init__(data_path, batch_size, avg_list, loss=None)
+        self.is_multi_output = True
+
     def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss=LOSS.CATEGORICAL_CROSSENTROPY):
         self._train_data = Dataset(batch_size)
         self._test_data = Dataset(batch_size)
@@ -109,10 +134,20 @@ class ModelCore(metaclass=ABCMeta):
         self.batch_size = batch_size
         self._data_path = data_path
         self.avg_logger = AvgLogger(avg_list)
-        self.loss_function = LossFunction(loss)
+        self._loss_function = LossFunction(loss)
+        self.is_multi_output = False
 
         self.read_data()
         self.build_model()
+
+    def calculate_loss_function(self, labels, outputs, axis):
+        if self.is_multi_output:
+            if len(self._loss_function_list) != len(labels) and len(labels) != len(outputs):
+                raise Exception("unmatch length of labels and outputs.")
+            return [loss_function.calculate(labels[i], outputs[i], axis) for i, loss_function in
+                    enumerate(self._loss_function_list)]
+        else:
+            return self._loss_function.calculate(labels, outputs, axis)
 
     def check_integer_string(self, int_value):
         try:
@@ -179,12 +214,13 @@ class Net:
 
                 with tf.GradientTape() as tape:
                     outputs = model(inputs, training=True)
-                    loss = self._model_core.loss_function.calculate(labels, outputs, axis=1)
+                    loss = self._model_core.calculate_loss_function(labels, outputs, axis=1)
 
                 values = self.get_value_train_step(outputs, labels)
 
                 grads = tape.gradient(loss, model.trainable_variables)  # calculate gradients
                 optimizer.apply_gradients(zip(grads, model.trainable_variables))  # update gradients
+
                 self._model_core.avg_logger.update_state([loss] + values)
 
             log_result = self._model_core.avg_logger.result()
