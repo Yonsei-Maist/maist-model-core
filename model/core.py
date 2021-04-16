@@ -60,14 +60,7 @@ class LossFunction:
                                                                                                    axis)
 
     def calculate(self, labels, outputs, axis):
-        if isinstance(labels, list):
-            result = []
-            for i in range(len(labels)):
-                result.append(self.__lambda(labels[i], outputs[i], axis))
-            print(result)
-            return result
-        else:
-            return self.__lambda(labels, outputs, axis)
+        return self.__lambda(labels, outputs, axis)
 
 
 class Dataset:
@@ -121,12 +114,6 @@ class Dataset:
 
 
 class ModelCore(metaclass=ABCMeta):
-
-    def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss_list=[LOSS.CATEGORICAL_CROSSENTROPY]):
-        self._loss_function_list = [LossFunction(loss) for loss in loss_list]
-        self.__init__(data_path, batch_size, avg_list, loss=None)
-        self.is_multi_output = True
-
     def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss=LOSS.CATEGORICAL_CROSSENTROPY):
         self._train_data = Dataset(batch_size)
         self._test_data = Dataset(batch_size)
@@ -134,8 +121,13 @@ class ModelCore(metaclass=ABCMeta):
         self.batch_size = batch_size
         self._data_path = data_path
         self.avg_logger = AvgLogger(avg_list)
-        self._loss_function = LossFunction(loss)
-        self.is_multi_output = False
+
+        self.is_multi_output = isinstance(loss, list)
+
+        if self.is_multi_output:
+            self._loss_function_list = [LossFunction(loss_function) for loss_function in loss]
+        else:
+            self._loss_function = LossFunction(loss)
 
         self.read_data()
         self.build_model()
@@ -221,7 +213,10 @@ class Net:
                 grads = tape.gradient(loss, model.trainable_variables)  # calculate gradients
                 optimizer.apply_gradients(zip(grads, model.trainable_variables))  # update gradients
 
-                self._model_core.avg_logger.update_state([loss] + values)
+                if isinstance(loss, list):
+                    self._model_core.avg_logger.update_state(loss + values)
+                else:
+                    self._model_core.avg_logger.update_state([loss] + values)
 
             log_result = self._model_core.avg_logger.result()
             print('Epoch: {} {}'.format(i, log_result))
@@ -246,11 +241,15 @@ class Net:
             inputs = data[0]
             labels = data[1]
             outputs = model(inputs, training=False)
-            loss = self._model_core.loss_function.calculate(labels, outputs, axis=1)
+
+            loss = self._model_core.calculate_loss_function(labels, outputs, axis=1)
 
             values = self.get_value_train_step(outputs, labels)
 
-            self._model_core.avg_logger.update_state([loss] + values)
+            if isinstance(loss, list):
+                self._model_core.avg_logger.update_state(loss + values)
+            else:
+                self._model_core.avg_logger.update_state([loss] + values)
 
             all_outputs.extend(outputs)
 
