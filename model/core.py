@@ -10,6 +10,7 @@ class LOSS(Enum):
     COSINE_SIMILARITY = 2
     CATEGORICAL_CROSSENTROPY = 3
     BINARY_CROSSENTROPY = 4
+    SPARSE_CATEGORICAL_CROSSENTROPY = 5
 
 
 class AvgLogger:
@@ -55,6 +56,8 @@ class LossFunction:
             self.__lambda = lambda labels, outputs, axis: tf.keras.losses.cosine_similarity(labels, outputs, axis)
         elif loss == LOSS.BINARY_CROSSENTROPY:
             self.__lambda = lambda labels, outputs, axis: tf.keras.losses.binary_crossentropy(labels, outputs, axis)
+        elif loss == LOSS.BINARY_CROSSENTROPY:
+            self.__lambda = lambda labels, outputs, axis: tf.keras.losses.sparse_categorical_crossentropy(labels, outputs, axis)
         else:  # default
             self.__lambda = lambda labels, outputs, axis: tf.keras.losses.categorical_crossentropy(labels, outputs,
                                                                                                    axis)
