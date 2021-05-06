@@ -225,7 +225,7 @@ class ModelCore(metaclass=ABCMeta):
         pass
 
     def make_dataset(self, is_classify=False):
-        DatasetFactory.make_dataset(self._train_data, self._test_data, self._data_all, self._train_test_ratio, is_classify)
+        self._train_data, self._test_data = DatasetFactory.make_dataset(self._train_data, self._test_data, self._data_all, self._train_test_ratio, is_classify)
 
 
 class Net:
