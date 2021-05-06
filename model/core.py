@@ -138,7 +138,8 @@ class DatasetFactory:
             dic_label = {}
 
             for data in data_all:
-                label_one = data['output']  # it is zero-base label
+                zero_list = data['output']  # it is zero-base label
+                label_one = zero_list.index(max(zero_list))
                 if label_one in dic_label:
                     dic_label[label_one].append(data)
                 else:
