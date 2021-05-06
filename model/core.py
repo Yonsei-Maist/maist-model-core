@@ -127,7 +127,6 @@ class DatasetFactory:
 
     @staticmethod
     def make_dataset(train_data, test_data, data_all, sp_ratio, is_classify):
-        sp = int(len(data_all) * sp_ratio)
 
         item_one = data_all[0]
 
@@ -147,11 +146,13 @@ class DatasetFactory:
 
             for key in dic_label.keys():
                 data_arr = dic_label[key]
+                sp = int(len(data_arr) * sp_ratio)
                 random.shuffle(data_arr)
 
                 data_train.extend(data_arr[:sp])
                 data_test.extend(data_arr[sp:])
         else:
+            sp = int(len(data_all) * sp_ratio)
             data_train = data_all[:sp]
             data_test = data_all[sp:]
 
