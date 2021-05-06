@@ -138,7 +138,7 @@ class DatasetFactory:
             dic_label = {}
 
             for data in data_all:
-                label_one = data['output']
+                label_one = data['output']  # it is zero-base label
                 if label_one in dic_label:
                     dic_label[label_one].append(data)
                 else:
@@ -161,26 +161,19 @@ class DatasetFactory:
         origin_train = None
         origin_test = None
 
-        input_dtype = None
-        output_dtype = None
-
-        if isinstance(item_one['input'], list):
-            input_dtype = DatasetFactory.get_dtype(item_one['input'][0])
-            input_train = [tf.convert_to_tensor([item['input'][i] for item in data_train], dtype=input_dtype) for i in range(len(item_one['input']))]
-            input_test = [tf.convert_to_tensor([item['input'][i] for item in data_test], dtype=input_dtype) for i in range(len(item_one['input']))]
+        if isinstance(item_one['input'], dict):
+            input_train = [tf.convert_to_tensor([item['input'][i] for item in data_train], dtype=tf.float32) for i in range(len(item_one['input'].keys()))]
+            input_test = [tf.convert_to_tensor([item['input'][i] for item in data_test], dtype=tf.float32) for i in range(len(item_one['input'].keys()))]
         else:
-            input_dtype = DatasetFactory.get_dtype(item_one['input'])
-            input_train = [tf.convert_to_tensor([item['input'] for item in data_train], dtype=input_dtype)]
-            input_test = [tf.convert_to_tensor([item['input'] for item in data_test], dtype=input_dtype)]
+            input_train = [tf.convert_to_tensor([item['input'] for item in data_train], dtype=tf.float32)]
+            input_test = [tf.convert_to_tensor([item['input'] for item in data_test], dtype=tf.float32)]
 
-        if isinstance(item_one['output'], list):
-            output_dtype = DatasetFactory.get_dtype(item_one['output'][0])
-            output_train = [tf.convert_to_tensor([item['output'][i] for item in data_train], dtype=output_dtype) for i in range(len(item_one['input']))]
-            output_test = [tf.convert_to_tensor([item['output'][i] for item in data_test], dtype=output_dtype) for i in range(len(item_one['input']))]
+        if isinstance(item_one['output'], dict):
+            output_train = [tf.convert_to_tensor([item['output'][i] for item in data_train], dtype=tf.float32) for i in range(len(item_one['output'].keys()))]
+            output_test = [tf.convert_to_tensor([item['output'][i] for item in data_test], dtype=tf.float32) for i in range(len(item_one['output'].keys()))]
         else:
-            output_dtype = DatasetFactory.get_dtype(item_one['output'])
-            output_train = [tf.convert_to_tensor([item['output'] for item in data_train], dtype=output_dtype)]
-            output_test = [tf.convert_to_tensor([item['output'] for item in data_test], dtype=output_dtype)]
+            output_train = [tf.convert_to_tensor([item['output'] for item in data_train], dtype=tf.float32)]
+            output_test = [tf.convert_to_tensor([item['output'] for item in data_test], dtype=tf.float32)]
 
         if 'origin' in item_one:
             origin_train = [item['origin'] for item in data_train]
