@@ -193,7 +193,7 @@ class DatasetFactory:
 
 
 class ModelCore(metaclass=ABCMeta):
-    def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss=LOSS.CATEGORICAL_CROSSENTROPY, train_test_ratio=0.8):
+    def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss=LOSS.CATEGORICAL_CROSSENTROPY, train_test_ratio=0.8, is_classify=False):
         self._train_data = Dataset(batch_size)
         self._test_data = Dataset(batch_size)
         self.model = None
@@ -202,6 +202,7 @@ class ModelCore(metaclass=ABCMeta):
         self.avg_logger = AvgLogger(avg_list)
         self._data_all = None
         self._train_test_ratio = train_test_ratio
+        self._is_classify = is_classify
 
         self.is_multi_output = isinstance(loss, list)
 
@@ -243,8 +244,8 @@ class ModelCore(metaclass=ABCMeta):
     def read_data(self):
         pass
 
-    def make_dataset(self, is_classify=False):
-        self._train_data, self._test_data = DatasetFactory.make_dataset(self._train_data, self._test_data, self._data_all, self._train_test_ratio, is_classify)
+    def make_dataset(self):
+        self._train_data, self._test_data = DatasetFactory.make_dataset(self._train_data, self._test_data, self._data_all, self._train_test_ratio, self._is_classify)
 
 
 class Net:
