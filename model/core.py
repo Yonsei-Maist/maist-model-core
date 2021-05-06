@@ -2,6 +2,7 @@ import tensorflow as tf
 from enum import Enum
 import math
 import os
+import random
 from abc import *
 
 
@@ -102,7 +103,7 @@ class Dataset:
                       [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in self.__labels]
 
     def get_origin(self):
-        if (self.__origins == None):
+        if self.__origins is None:
             raise Exception("the origin file is empty")
 
         iter = math.ceil(len(self) / self.__batch_size)
@@ -116,14 +117,72 @@ class Dataset:
         return 0
 
 
+class DatasetFactory:
+
+    @staticmethod
+    def make_dataset(train_data, test_data, data_all, sp_ratio, is_classify):
+        sp = int(len(data_all) * sp_ratio)
+
+        item_one = data_all[0]
+
+        data_train = []
+        data_test = []
+
+        if is_classify:
+            dic_label = {}
+
+            for data in data_all:
+                label_one = data['output']
+                if label_one in dic_label:
+                    dic_label[label_one].append(data)
+                else:
+                    dic_label[label_one] = [data]
+
+            for key in dic_label.keys():
+                data_arr = dic_label[key]
+                random.shuffle(data_arr)
+
+                data_train.extend(data_arr[:sp])
+                data_test.extend(data_arr[sp:])
+        else:
+            data_train = data_all[:sp]
+            data_test = data_all[sp:]
+
+        input_train = None
+        input_test = None
+        output_train = None
+        output_test = None
+
+        if isinstance(item_one['input'], list):
+            input_train = [tf.convert_to_tensor([item['input'][i] for item in data_train], dtype=tf.int64) for i in range(len(item_one['input']))]
+            input_test = [tf.convert_to_tensor([item['input'][i] for item in data_test], dtype=tf.int64) for i in range(len(item_one['input']))]
+        else:
+            input_train = [tf.convert_to_tensor([item['input'] for item in data_train], dtype=tf.int64)]
+            input_test = [tf.convert_to_tensor([item['input'] for item in data_test], dtype=tf.int64)]
+
+        if isinstance(item_one['output'], list):
+            output_train = [tf.convert_to_tensor([item['input'][i] for item in data_train], dtype=tf.int64) for i in range(len(item_one['input']))]
+            output_test = [tf.convert_to_tensor([item['input'][i] for item in data_test], dtype=tf.int64) for i in range(len(item_one['input']))]
+        else:
+            output_train = [tf.convert_to_tensor([item['input'] for item in data_train], dtype=tf.int64)]
+            output_test = [tf.convert_to_tensor([item['input'] for item in data_test], dtype=tf.int64)]
+
+        train_data.set(input_train, output_train)
+        test_data.set(input_test, output_test)
+
+        return train_data, test_data
+
+
 class ModelCore(metaclass=ABCMeta):
-    def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss=LOSS.CATEGORICAL_CROSSENTROPY):
+    def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss=LOSS.CATEGORICAL_CROSSENTROPY, train_test_radio=0.8):
         self._train_data = Dataset(batch_size)
         self._test_data = Dataset(batch_size)
         self.model = None
         self.batch_size = batch_size
         self._data_path = data_path
         self.avg_logger = AvgLogger(avg_list)
+        self._data_all = None
+        self._train_test_radio = train_test_radio
 
         self.is_multi_output = isinstance(loss, list)
 
@@ -133,6 +192,7 @@ class ModelCore(metaclass=ABCMeta):
             self._loss_function = LossFunction(loss)
 
         self.read_data()
+        self.make_dataset()
         self.build_model()
 
     def calculate_loss_function(self, labels, outputs, axis):
@@ -163,6 +223,9 @@ class ModelCore(metaclass=ABCMeta):
     @abstractmethod
     def read_data(self):
         pass
+
+    def make_dataset(self, is_classify=False):
+        DatasetFactory.make_dataset(self._train_data, self._test_data, self._data_all, self._train_test_ratio, is_classify)
 
 
 class Net:
