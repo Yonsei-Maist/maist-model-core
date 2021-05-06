@@ -152,6 +152,8 @@ class DatasetFactory:
         input_test = None
         output_train = None
         output_test = None
+        origin_train = None
+        origin_test = None
 
         if isinstance(item_one['input'], list):
             input_train = [tf.convert_to_tensor([item['input'][i] for item in data_train], dtype=tf.int64) for i in range(len(item_one['input']))]
@@ -167,8 +169,12 @@ class DatasetFactory:
             output_train = [tf.convert_to_tensor([item['input'] for item in data_train], dtype=tf.int64)]
             output_test = [tf.convert_to_tensor([item['input'] for item in data_test], dtype=tf.int64)]
 
-        train_data.set(input_train, output_train)
-        test_data.set(input_test, output_test)
+        if 'origin' in item_one:
+            origin_train = [item['origin'] for item in data_train]
+            origin_test = [item['origin'] for item in data_test]
+
+        train_data.set(input_train, output_train, origin_train)
+        test_data.set(input_test, output_test, origin_test)
 
         return train_data, test_data
 
