@@ -263,15 +263,18 @@ class Net:
 
     def save_when(self, epoch, result_values):
         """
-        save condition
+        condition when save
         :param epoch: current epoch
         :param result_values: current loss and logger result value
         :return: true or false
         """
         return True
 
-    def train(self, epoch=10000, lr=0.001):
+    def train(self, pretrained_module_name=None, pretrained_module_index=None, epoch=10000, lr=0.001):
         self._model_core.build_model()
+        if pretrained_module_name is not None and pretrained_module_index is not None:
+            self._model_core.model.load_weights(os.path.join(self._base_path,
+                                                './checkpoints/{0}_{1}.tf'.format(pretrained_module_name, pretrained_module_index)))
         model = self._model_core.model
         optimizer = tf.keras.optimizers.Adam(lr=lr)
 
