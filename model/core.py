@@ -52,7 +52,7 @@ class LossFunction:
     def __init__(self, loss: LOSS):
         self.__lambda = None
         if loss == LOSS.MSE:
-            self.__lambda = lambda labels, outputs, axis: tf.keras.losses.MSE(labels, outputs, axis)
+            self.__lambda = lambda labels, outputs, axis: tf.keras.losses.MSE(labels, outputs)
         elif loss == LOSS.COSINE_SIMILARITY:
             self.__lambda = lambda labels, outputs, axis: tf.keras.losses.cosine_similarity(labels, outputs, axis)
         elif loss == LOSS.BINARY_CROSSENTROPY:
