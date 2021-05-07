@@ -268,7 +268,7 @@ class Net:
         :param result_values: current loss and logger result value
         :return: true or false
         """
-        return True
+        return False
 
     def train(self, pretrained_module_name=None, pretrained_module_index=None, epoch=10000, lr=0.001):
         self._model_core.build_model()
