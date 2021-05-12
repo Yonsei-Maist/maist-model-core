@@ -242,7 +242,6 @@ class ModelCore(metaclass=ABCMeta):
     def make_dataset(self):
         self._train_data, self._test_data = DatasetFactory.make_dataset(self._train_data, self._test_data, self._data_all, self._train_test_ratio, self._is_classify)
 
-    @abstractmethod
     def load_weight(self):
         """
         load weight without checkpoint
