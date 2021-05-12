@@ -242,6 +242,13 @@ class ModelCore(metaclass=ABCMeta):
     def make_dataset(self):
         self._train_data, self._test_data = DatasetFactory.make_dataset(self._train_data, self._test_data, self._data_all, self._train_test_ratio, self._is_classify)
 
+    @abstractmethod
+    def load_weight(self):
+        """
+        load weight without checkpoint
+        """
+        pass
+
 
 class Net:
     def __init__(self, module_name, base_path, model_core: ModelCore):
@@ -312,8 +319,11 @@ class Net:
 
     def test(self, index):
         self._model_core.build_model()
-        self._model_core.model.load_weights(os.path.join(self._base_path,
-                                                         './checkpoints/{}_{}.tf'.format(self.name, index)))
+        if index > -1:
+            self._model_core.model.load_weights(os.path.join(self._base_path,
+                                                             './checkpoints/{}_{}.tf'.format(self.name, index)))
+        else:
+            self._model_core.load_weight()
 
         model = self._model_core.model
         test_data = self._model_core.get_test_data()
