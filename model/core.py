@@ -354,8 +354,12 @@ class Net:
 
     def predict(self, index, data):
         self._model_core.build_model()
-        self._model_core.model.load_weights(os.path.join(self._base_path,
-                                                         './checkpoints/{}_{}.tf'.format(self.name, index)))
+
+        if index > -1:
+            self._model_core.model.load_weights(os.path.join(self._base_path,
+                                                             './checkpoints/{}_{}.tf'.format(self.name, index)))
+        else:
+            self._model_core.load_weight()
 
         return self._model_core.model(data, training=False)
 
