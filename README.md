@@ -6,6 +6,7 @@ The core of machine learning for Yonsei MAIST
 ```
 python 3.7 ~
 tensorflow 2.4 ~
+tensorflowjs 3.7.0 ~
 ```
 
 ## Install

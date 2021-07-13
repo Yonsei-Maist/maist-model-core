@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflowjs as tfjs
 from enum import Enum
 import math
 import os
@@ -380,3 +381,13 @@ class Net:
                 data_for_graph.append(int(tf.math.argmax(data[1][i])))
 
         return data_for_graph, ldl_c_d_for_graph
+
+    def save_to_js(self, index, path):
+        self._model_core.build_model()
+        if index > -1:
+            self._model_core.model.load_weights(os.path.join(self._base_path,
+                                                             './checkpoints/{}_{}.tf'.format(self.name, index)))
+        else:
+            self._model_core.load_weight()
+
+        tfjs.converters.save_keras_model(self._model_core.model, path)
