@@ -97,6 +97,8 @@ class Dataset:
 
         transform = None
 
+        output_transform = lambda item: tf.convert_to_tensor(item, dtype=tf.float32)
+
         if self.__model is None:
             transform = lambda item: tf.convert_to_tensor(item, dtype=tf.float32)
         else:
@@ -106,11 +108,11 @@ class Dataset:
             if len(self.__labels) == 1:
                 yield [transform(item[i * self.__batch_size: i * self.__batch_size + self.__batch_size]) for item in
                        self.__inputs], \
-                      self.__labels[0][i * self.__batch_size: i * self.__batch_size + self.__batch_size]
+                      output_transform(self.__labels[0][i * self.__batch_size: i * self.__batch_size + self.__batch_size])
             else:
                 yield [transform(item[i * self.__batch_size: i * self.__batch_size + self.__batch_size]) for item in
                        self.__inputs], \
-                      [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in self.__labels]
+                      [output_transform(item[i * self.__batch_size: i * self.__batch_size + self.__batch_size]) for item in self.__labels]
 
     def get_origin(self):
         if self.__origins is None:
