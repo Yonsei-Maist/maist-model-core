@@ -214,8 +214,8 @@ class DatasetFactory:
 
 class ModelCore(metaclass=ABCMeta):
     def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss=LOSS.CATEGORICAL_CROSSENTROPY, train_test_ratio=0.8, is_classify=False):
-        self._train_data = Dataset(batch_size)
-        self._test_data = Dataset(batch_size)
+        self._train_data = Dataset(batch_size, self)
+        self._test_data = Dataset(batch_size, self)
         self.model = None
         self.batch_size = batch_size
         self._data_path = data_path
