@@ -121,10 +121,10 @@ class Dataset:
             raw_input = [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in
                        self.__inputs]
             if len(self.__labels) == 1:
-                yield transform(raw_input), \
+                yield transform(self.__model, raw_input), \
                       output_transform(self.__labels[0][i * self.__batch_size: i * self.__batch_size + self.__batch_size])
             else:
-                yield transform(raw_input), \
+                yield transform(self.__model, raw_input), \
                       [output_transform(item[i * self.__batch_size: i * self.__batch_size + self.__batch_size]) for item in self.__labels]
 
     def get_origin(self):
