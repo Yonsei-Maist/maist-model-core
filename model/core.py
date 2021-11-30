@@ -98,9 +98,9 @@ class Dataset:
         transform = None
 
         if self.__model is None:
-            transform = lambda item: tf.convert_to_tensor(item)
+            transform = lambda item: tf.convert_to_tensor(item, dtype=tf.float32)
         else:
-            transform = lambda item: tf.convert_to_tensor([self.__model.data_transform(obj) for obj in item])
+            transform = lambda item: tf.convert_to_tensor([self.__model.data_transform(obj) for obj in item], dtype=tf.float32)
 
         for i in range(iter):
             if len(self.__labels) == 1:
