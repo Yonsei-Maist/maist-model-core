@@ -69,11 +69,12 @@ class LossFunction:
 
 
 class Dataset:
-    def __init__(self, batch_size):
+    def __init__(self, batch_size, model=None):
         self.__inputs = None
         self.__labels = None
         self.__origins = None
         self.__batch_size = batch_size
+        self.__model = model
 
     def set(self, inputs, labels, origin_file=None):
         len_input = -1
@@ -93,13 +94,21 @@ class Dataset:
 
     def get(self):
         iter = math.ceil(len(self) / self.__batch_size)
+
+        transform = None
+
+        if self.__model is None:
+            transform = lambda item: tf.convert_to_tensor(item)
+        else:
+            transform = lambda item: tf.convert_to_tensor([self.__model.data_transform(obj) for obj in item])
+
         for i in range(iter):
             if len(self.__labels) == 1:
-                yield [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in
+                yield [transform(item[i * self.__batch_size: i * self.__batch_size + self.__batch_size]) for item in
                        self.__inputs], \
                       self.__labels[0][i * self.__batch_size: i * self.__batch_size + self.__batch_size]
             else:
-                yield [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in
+                yield [transform(item[i * self.__batch_size: i * self.__batch_size + self.__batch_size]) for item in
                        self.__inputs], \
                       [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in self.__labels]
 
@@ -165,18 +174,18 @@ class DatasetFactory:
         origin_test = None
 
         if isinstance(item_one['input'], dict):
-            input_train = [tf.convert_to_tensor([item['input'][i] for item in data_train], dtype=tf.float32) for i in range(len(item_one['input'].keys()))]
-            input_test = [tf.convert_to_tensor([item['input'][i] for item in data_test], dtype=tf.float32) for i in range(len(item_one['input'].keys()))]
+            input_train = [[item['input'][i] for item in data_train] for i in range(len(item_one['input'].keys()))]
+            input_test = [[item['input'][i] for item in data_test] for i in range(len(item_one['input'].keys()))]
         else:
-            input_train = [tf.convert_to_tensor([item['input'] for item in data_train], dtype=tf.float32)]
-            input_test = [tf.convert_to_tensor([item['input'] for item in data_test], dtype=tf.float32)]
+            input_train = [[item['input'] for item in data_train]]
+            input_test = [[item['input'] for item in data_test]]
 
         if isinstance(item_one['output'], dict):
-            output_train = [tf.convert_to_tensor([item['output'][i] for item in data_train], dtype=tf.float32) for i in range(len(item_one['output'].keys()))]
-            output_test = [tf.convert_to_tensor([item['output'][i] for item in data_test], dtype=tf.float32) for i in range(len(item_one['output'].keys()))]
+            output_train = [[item['output'][i] for item in data_train] for i in range(len(item_one['output'].keys()))]
+            output_test = [[item['output'][i] for item in data_test] for i in range(len(item_one['output'].keys()))]
         else:
-            output_train = [tf.convert_to_tensor([item['output'] for item in data_train], dtype=tf.float32)]
-            output_test = [tf.convert_to_tensor([item['output'] for item in data_test], dtype=tf.float32)]
+            output_train = [[item['output'] for item in data_train]]
+            output_test = [[item['output'] for item in data_test]]
 
         if 'origin' in item_one:
             origin_train = [item['origin'] for item in data_train]
@@ -242,6 +251,9 @@ class ModelCore(metaclass=ABCMeta):
 
     def make_dataset(self):
         self._train_data, self._test_data = DatasetFactory.make_dataset(self._train_data, self._test_data, self._data_all, self._train_test_ratio, self._is_classify)
+
+    def data_transform(self, item):
+        return item
 
     def load_weight(self):
         """

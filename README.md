@@ -14,6 +14,11 @@ tensorflowjs 3.7.0 ~
 pip install -U git+https://git@github.com/Yonsei-Maist/maist-model-core.git
 ```
 
+## Install Custom Library
+```
+pip install -U git+https://git@github.com/Yonsei-Maist/maist-nlp.git
+```
+
 ## Usage
 
 ## Author
