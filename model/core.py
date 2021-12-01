@@ -73,7 +73,7 @@ class Dataset:
         self.__inputs = None
         self.__labels = None
         self.__origins = None
-        self.__batch_size = batch_size
+        self.batch_size = batch_size
         self.__model = model
 
     def set(self, inputs, labels, origin_file=None):
@@ -93,9 +93,7 @@ class Dataset:
         self.__origins = origin_file
 
     def get(self):
-        iter = math.ceil(len(self) / self.__batch_size)
-
-        transform = None
+        iter = math.ceil(len(self) / self.batch_size)
 
         output_transform = lambda item: tf.convert_to_tensor(item, dtype=tf.float32)
 
@@ -118,24 +116,27 @@ class Dataset:
                 return [tf.convert_to_tensor(item, dtype=tf.float32) for item in batch_result]
 
         for i in range(iter):
-            raw_input = [item[i * self.__batch_size: i * self.__batch_size + self.__batch_size] for item in
+            raw_input = [item[i * self.batch_size: i * self.batch_size + self.batch_size] for item in
                        self.__inputs]
             if len(self.__labels) == 1:
                 yield transform(self.__model, raw_input), \
-                      output_transform(self.__labels[0][i * self.__batch_size: i * self.__batch_size + self.__batch_size])
+                      output_transform(self.__labels[0][i * self.batch_size: i * self.batch_size + self.batch_size])
             else:
                 yield transform(self.__model, raw_input), \
-                      [output_transform(item[i * self.__batch_size: i * self.__batch_size + self.__batch_size]) for item in self.__labels]
+                      [output_transform(item[i * self.batch_size: i * self.batch_size + self.batch_size]) for item in self.__labels]
 
     def get_origin(self):
         if self.__origins is None:
             raise Exception("the origin file is empty")
 
-        iter = math.ceil(len(self) / self.__batch_size)
+        iter = math.ceil(len(self) / self.batch_size)
         for i in range(iter):
-            yield self.__origins[i * self.__batch_size: i * self.__batch_size + self.__batch_size]
+            yield self.__origins[i * self.batch_size: i * self.batch_size + self.batch_size]
 
     def __len__(self):
+        if self.__inputs is None:
+            return 0
+
         if len(self.__inputs) > 0:
             return len(self.__inputs[0])
 
@@ -265,7 +266,8 @@ class ModelCore(metaclass=ABCMeta):
         pass
 
     def make_dataset(self):
-        self._train_data, self._test_data = DatasetFactory.make_dataset(self._train_data, self._test_data, self._data_all, self._train_test_ratio, self._is_classify)
+        if self._data_all is not None and len(self._data_all) > 0:
+            self._train_data, self._test_data = DatasetFactory.make_dataset(self._train_data, self._test_data, self._data_all, self._train_test_ratio, self._is_classify)
 
     def data_transform(self, item):
         return item
