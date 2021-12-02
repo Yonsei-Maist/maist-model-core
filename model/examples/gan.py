@@ -67,7 +67,8 @@ class GanExample(Example, GanCore):
 
     def run(self):
         net = GanNetwork("FashionGenerator", "./fashion_gen/", self)
-        net.train()
+        # net.train()
+        return net.test(80)
 
     def read_data(self):
         (train_images, train_labels), (test_images, test_labels) = self.load_data()

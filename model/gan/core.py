@@ -9,7 +9,7 @@ import numpy as np
 
 
 class GanCore(ModelCore, ABC):
-    def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss=LOSS.CATEGORICAL_CROSSENTROPY, train_test_ratio=0.8, is_classify=False,
+    def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss=LOSS.CATEGORICAL_CROSSENTROPY, train_test_ratio=1, is_classify=False,
                  generator: ModelCore=None, discriminator: ModelCore=None, latent_space_size=100):
         if not isinstance(generator, ModelCore):
             raise ValueError('Generator is not ModelCore')
@@ -65,6 +65,9 @@ class GanNetwork(Net):
         super().__init__(module_name, base_path, model_core)
         self._model_core = model_core
 
+    def create_fake_seed(self, count):
+        return np.random.normal(0, 1, (count, self._model_core.latent_space_size)), np.array([[0, 1] for i in range(count)])
+
     def generate_fake_seed(self):
         real = self._model_core.get_train_data_real()
         iter = math.ceil(len(real) / real.batch_size)
@@ -74,7 +77,7 @@ class GanNetwork(Net):
             if i == iter - 1 and len(real) % real.batch_size != 0:
                 count = len(real) % real.batch_size
 
-            yield np.random.normal(0, 1, (count, self._model_core.latent_space_size)), np.array([[0, 1] for i in range(count)])
+            yield self.create_fake_seed(count)
 
     def _train_discriminator(self, optimizer, real_data, fake_data, real_label, fake_label):
         data_inputs = np.concatenate([real_data[0], fake_data])
@@ -101,6 +104,9 @@ class GanNetwork(Net):
         optimizer.apply_gradients(zip(grads, self._model_core.model.trainable_variables))  # update gradients
 
         return gan_loss
+
+    def save_when(self, epoch, result_values):
+        return epoch != 0 and epoch % 10 == 0
 
     def train(self, pretrained_module_name=None, pretrained_module_index=None, epoch=10000, lr=0.001):
 
@@ -153,10 +159,10 @@ class GanNetwork(Net):
         else:
             self._model_core.load_weight()
         self._model_core.avg_logger.refresh()
-        fake_seed, fake_label = self.generate_fake_seed()
+        fake_seed, fake_label = self.create_fake_seed(16)
         gen_list = self._model_core.generator.model(fake_seed, training=False)
         output = self._model_core.discriminator.model(gen_list, training=False)
-        loss = self._model_core.discriminator.calculate_loss_function(output, fake_label, axis=1)
+        loss = self._model_core.discriminator.calculate_loss_function(output, tf.convert_to_tensor(fake_label, dtype=tf.float32), axis=1)
 
         if isinstance(loss, list):
             self._model_core.avg_logger.update_state(loss)
@@ -165,7 +171,7 @@ class GanNetwork(Net):
 
         log_result = self._model_core.avg_logger.result_value()
 
-        return log_result, output
+        return log_result, gen_list
 
     def predict(self, index, data):
         if self._model_core.model is None:

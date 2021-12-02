@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name             = 'maist-model-core',
-    version          = '1.1',
+    version          = '1.2',
     description      = 'main core of machine learning module by Yonsei MAIST',
     author           = 'Chanwoo Gwon',
     author_email     = 'arknell@yonsei.ac.kr',
