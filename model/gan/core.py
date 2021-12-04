@@ -41,8 +41,10 @@ class GanCore(ModelCore, ABC):
         return self._test_data_fake_seed
 
     def build_model(self):
-        out = self.discriminator.model(self.generator.model.output, training=False)
-        self.model = tf.keras.Model(inputs=[self.generator.model.input], outputs=[out])
+        input_ = self.generator.model.input
+        out = self.generator.model(input_)
+        out = self.discriminator.model(out, training=False)
+        self.model = tf.keras.Model(inputs=[input_], outputs=[out])
 
     def make_dataset(self):
         if self._data_all is not None and len(self._data_all) > 0:
@@ -66,7 +68,7 @@ class GanNetwork(Net):
         self._model_core = model_core
 
     def create_fake_seed(self, count):
-        return np.random.normal(0, 1, (count, self._model_core.latent_space_size)), np.array([[0, 1] for i in range(count)])
+        return np.random.normal(0, 1, (count, self._model_core.latent_space_size)), np.array([[0] for i in range(count)])
 
     def generate_fake_seed(self):
         real = self._model_core.get_train_data_real()
@@ -105,18 +107,16 @@ class GanNetwork(Net):
 
         return gan_loss
 
-    def save_when(self, epoch, result_values):
-        return epoch != 0 and epoch % 10 == 0
-
     def train(self, pretrained_module_name=None, pretrained_module_index=None, epoch=10000, lr=0.001):
 
         train_data_real = self._model_core.get_train_data_real()
         train_data_fake_seed = self._model_core.get_train_data_fake_seed()
 
-        optimizer_discriminator = tf.keras.optimizers.Adam(lr=lr)
-        optimizer_generator = tf.keras.optimizers.Adam(lr=lr)
+        optimizer_discriminator = tf.keras.optimizers.Adam(learning_rate=lr)
+        optimizer_generator = tf.keras.optimizers.Adam(learning_rate=lr)
 
         for i in range(epoch):
+            self._model_core.discriminator.avg_logger.refresh()
             self._model_core.avg_logger.refresh()
             gen_real = list(train_data_real.get())
             if train_data_fake_seed is not None and len(train_data_fake_seed) > 0:
@@ -144,8 +144,14 @@ class GanNetwork(Net):
                 else:
                     self._model_core.avg_logger.update_state([gan_loss])
 
+                if isinstance(discriminator_loss, list):
+                    self._model_core.discriminator.avg_logger.update_state(discriminator_loss)
+                else:
+                    self._model_core.discriminator.avg_logger.update_state([discriminator_loss])
+
             log_result = self._model_core.avg_logger.result()
-            print('Epoch: {} {}'.format(i, log_result))
+            log_discriminator = self._model_core.discriminator.avg_logger.result()
+            print('Epoch: {} discriminator: {} generator: {}'.format(i, log_discriminator, log_result))
 
             # save weight every 100 epochs
             if (i % 100 == 0 and i != 0) or self.save_when(i, self._model_core.avg_logger.result_value()):

@@ -1,5 +1,4 @@
 import tensorflow as tf
-import tensorflowjs as tfjs
 from enum import Enum
 import math
 import os
@@ -312,7 +311,7 @@ class Net:
             self._model_core.model.load_weights(os.path.join(self._base_path,
                                                 './checkpoints/{0}_{1}.tf'.format(pretrained_module_name, pretrained_module_index)))
         model = self._model_core.model
-        optimizer = tf.keras.optimizers.Adam(lr=lr)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 
         train_data = self._model_core.get_train_data()
 
@@ -410,13 +409,3 @@ class Net:
                 data_for_graph.append(int(tf.math.argmax(data[1][i])))
 
         return data_for_graph, ldl_c_d_for_graph
-
-    def save_to_js(self, index, path):
-        self._model_core.build_model()
-        if index > -1:
-            self._model_core.model.load_weights(os.path.join(self._base_path,
-                                                             './checkpoints/{}_{}.tf'.format(self.name, index)))
-        else:
-            self._model_core.load_weight()
-
-        tfjs.converters.save_keras_model(self._model_core.model, path)
