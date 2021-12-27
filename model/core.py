@@ -12,6 +12,7 @@ class LOSS(Enum):
     CATEGORICAL_CROSSENTROPY = 3
     BINARY_CROSSENTROPY = 4
     SPARSE_CATEGORICAL_CROSSENTROPY = 5
+    MAE = 6
 
 
 class AvgLogger:
@@ -52,19 +53,21 @@ class LossFunction:
     def __init__(self, loss: LOSS):
         self.__lambda = None
         if loss == LOSS.MSE:
-            self.__lambda = lambda labels, outputs, axis: tf.keras.losses.MSE(labels, outputs)
+            self.__lambda = lambda labels, outputs, axis, **kwargs: tf.keras.losses.MeanSquaredError()(labels, outputs)
         elif loss == LOSS.COSINE_SIMILARITY:
-            self.__lambda = lambda labels, outputs, axis: tf.keras.losses.cosine_similarity(labels, outputs, axis)
+            self.__lambda = lambda labels, outputs, axis, **kwargs: tf.keras.losses.CosineSimilarity(axis=axis)(labels, outputs)
         elif loss == LOSS.BINARY_CROSSENTROPY:
-            self.__lambda = lambda labels, outputs, axis: tf.keras.losses.binary_crossentropy(labels, outputs, axis)
-        elif loss == LOSS.BINARY_CROSSENTROPY:
-            self.__lambda = lambda labels, outputs, axis: tf.keras.losses.sparse_categorical_crossentropy(labels, outputs, axis)
+            self.__lambda = lambda labels, outputs, axis, **kwargs: tf.keras.losses.BinaryCrossentropy(axis=axis,
+                                                                                                        from_logits=kwargs["from_logits"] if "from_logits" in kwargs else False)(labels, outputs)
+        elif loss == LOSS.SPARSE_CATEGORICAL_CROSSENTROPY:
+            self.__lambda = lambda labels, outputs, axis, **kwargs: tf.keras.losses.SparseCategoricalCrossentropy(axis=axis)(labels, outputs)
+        elif loss == LOSS.MAE:
+            self.__lambda = lambda labels, outputs, axis, **kwargs: tf.keras.losses.MeanAbsoluteError()(labels, outputs)
         else:  # default
-            self.__lambda = lambda labels, outputs, axis: tf.keras.losses.categorical_crossentropy(labels, outputs,
-                                                                                                   axis)
+            self.__lambda = lambda labels, outputs, axis, **kwargs: tf.keras.losses.CategoricalCrossentropy(axis=axis)(labels, outputs)
 
-    def calculate(self, labels, outputs, axis):
-        return self.__lambda(labels, outputs, axis)
+    def calculate(self, labels, outputs, axis, **kwargs):
+        return self.__lambda(labels, outputs, axis, **kwargs)
 
 
 class Dataset:
@@ -235,14 +238,14 @@ class ModelCore(metaclass=ABCMeta):
         self.make_dataset()
         self.build_model()
 
-    def calculate_loss_function(self, labels, outputs, axis):
+    def calculate_loss_function(self, labels, outputs, axis, **kwargs):
         if self.is_multi_output:
             if len(self._loss_function_list) != len(labels) and len(labels) != len(outputs):
                 raise Exception("unmatch length of labels and outputs.")
-            return [loss_function.calculate(labels[i], outputs[i], axis) for i, loss_function in
+            return [loss_function.calculate(labels[i], outputs[i], axis, **kwargs) for i, loss_function in
                     enumerate(self._loss_function_list)]
         else:
-            return self._loss_function.calculate(labels, outputs, axis)
+            return self._loss_function.calculate(labels, outputs, axis, **kwargs)
 
     def check_integer_string(self, int_value):
         try:
