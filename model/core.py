@@ -68,12 +68,14 @@ class LossFunction:
 
 
 class Dataset:
-    def __init__(self, batch_size, model=None):
+    def __init__(self, batch_size, model=None, input_dtype=tf.float32, output_dtype=tf.float32):
         self.__inputs = None
         self.__labels = None
         self.__origins = None
         self.batch_size = batch_size
         self.__model = model
+        self.__input_dtype = input_dtype
+        self.__output_dtype = output_dtype
 
     def set(self, inputs, labels, origin_file=None):
         len_input = -1
@@ -94,12 +96,12 @@ class Dataset:
     def get(self):
         iter = math.ceil(len(self) / self.batch_size)
 
-        output_transform = lambda item: tf.convert_to_tensor(item, dtype=tf.float32)
+        output_transform = lambda item: tf.convert_to_tensor(item, dtype=self.__output_dtype)
 
         def transform(model, inputs):
 
             if model is None:
-                return [tf.convert_to_tensor(item, dtype=tf.float32) for item in inputs]
+                return [tf.convert_to_tensor(item, dtype=self.__input_dtype) for item in inputs]
             else:
                 len_batch = len(inputs[0])
                 batch_result = []
@@ -112,7 +114,7 @@ class Dataset:
 
                         batch_result[j].append(res[j])
 
-                return [tf.convert_to_tensor(item, dtype=tf.float32) for item in batch_result]
+                return [tf.convert_to_tensor(item, dtype=self.__input_dtype) for item in batch_result]
 
         for i in range(iter):
             raw_input = [item[i * self.batch_size: i * self.batch_size + self.batch_size] for item in
@@ -213,9 +215,10 @@ class DatasetFactory:
 
 
 class ModelCore(metaclass=ABCMeta):
-    def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss=LOSS.CATEGORICAL_CROSSENTROPY, train_test_ratio=0.8, is_classify=False):
-        self._train_data = Dataset(batch_size, self)
-        self._test_data = Dataset(batch_size, self)
+    def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss=LOSS.CATEGORICAL_CROSSENTROPY,
+                 train_test_ratio=0.8, is_classify=False, input_dtype=tf.float32, output_dtype=tf.float32):
+        self._train_data = Dataset(batch_size, self, input_dtype, output_dtype)
+        self._test_data = Dataset(batch_size, self, input_dtype, output_dtype)
         self.model = None
         self.batch_size = batch_size
         self._data_path = data_path
