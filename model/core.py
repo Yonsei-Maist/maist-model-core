@@ -362,7 +362,11 @@ class Net:
         model = self._model_core.model
         test_data = self._model_core.get_test_data()
 
+        accuracy_logger = AvgLogger(['accuracy'])
+        accuracy_metrics = None
+
         self._model_core.avg_logger.refresh()
+        accuracy_logger.refresh()
         all_outputs = []
         gen = list(test_data.get())
         for data in gen:
@@ -371,6 +375,14 @@ class Net:
             outputs = model(inputs, training=False)
 
             loss = self._model_core.calculate_loss_function(labels, outputs, axis=1)
+            new_accuracy_metrics = tf.keras.metrics.Accuracy()
+
+            new_accuracy_metrics.update_state(labels, outputs)
+
+            if accuracy_metrics is not None:
+                new_accuracy_metrics.merge_state([accuracy_metrics])
+
+            accuracy_metrics = new_accuracy_metrics
 
             values = self.get_value_train_step(outputs, labels)
 
@@ -385,7 +397,7 @@ class Net:
 
         model.reset_states()
 
-        return log_result, all_outputs
+        return log_result, all_outputs, accuracy_metrics.result().numpy()
 
     def predict(self, index, data):
         self._model_core.build_model()
