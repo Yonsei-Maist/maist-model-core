@@ -24,12 +24,12 @@ class GanCore(ModelCore, ABC):
         # y_np[flip_ix] = 1 - y_np[flip_ix]
         for i in range(int(y.shape[0])):
             if i in flip_ix:
-                op_list.append(tf.subtract(1, y[i]))
+                op_list.append(tf.subtract(1.0, y[i]))
             else:
                 op_list.append(y[i])
 
         outputs = tf.stack(op_list)
-        return tf.cast(outputs, dtype=tf.float32)
+        return outputs
 
     @staticmethod
     def smooth_positive_labels(y):
@@ -41,10 +41,11 @@ class GanCore(ModelCore, ABC):
 
     @staticmethod
     def is_fake(label):
-        return label[0][0] == 0
+        return tf.equal(label[0][0], 0)
 
     def __init__(self, data_path, save_path, batch_size=64, loss=tf.keras.losses.BinaryCrossentropy(from_logits=True), train_test_ratio=1, is_classify=False,
-                 generator: ModelCore=None, discriminator: ModelCore=None, latent_space_size=100, flip_coin=False, metrics=None, optimizer=None, loss_weights=None):
+                 generator: ModelCore=None, discriminator: ModelCore=None, latent_space_size=100, flip_coin=False, metrics=None, optimizer=None, loss_weights=None,
+                 input_dtype=tf.float32, output_dtype=tf.float32):
         if not isinstance(generator, ModelCore):
             raise ValueError('Generator is not ModelCore')
         if not isinstance(discriminator, ModelCore):
@@ -61,14 +62,15 @@ class GanCore(ModelCore, ABC):
         else:
             data_batch = batch_size / 2
 
-        self._train_data_real = Dataset(int(data_batch), self)
-        self._train_data_fake_seed = Dataset(int(data_batch), self)
-        self._test_data_real = Dataset(int(data_batch), self)
-        self._test_data_fake_seed = Dataset(int(data_batch), self)
+        self._train_data_real = Dataset(int(data_batch), self, input_dtype, output_dtype)
+        self._train_data_fake_seed = Dataset(int(data_batch), self, input_dtype, output_dtype)
+        self._test_data_real = Dataset(int(data_batch), self, input_dtype, output_dtype)
+        self._test_data_fake_seed = Dataset(int(data_batch), self, input_dtype, output_dtype)
 
         super().__init__(data_path=data_path, save_path=save_path, batch_size=batch_size, loss=loss,
                          train_test_ratio=train_test_ratio, validation_ratio=0, is_classify=is_classify,
-                         metrics=metrics, optimizer=optimizer, loss_weights=loss_weights)
+                         metrics=metrics, optimizer=optimizer, loss_weights=loss_weights,
+                         input_dtype=input_dtype, output_dtype=output_dtype)
 
     def get_train_data_real(self):
         return self._train_data_real
@@ -96,7 +98,8 @@ class GanCore(ModelCore, ABC):
             self._train_data_fake_seed, self._test_data_fake_seed = DatasetFactory.make_dataset(self._train_data_fake_seed, self._test_data_fake_seed, self._data_fake_seed, self._train_test_ratio, self._is_classify)
 
     def create_fake_seed(self, count):
-        return np.random.normal(0, 1, (count, self.latent_space_size)), np.array([[0] for i in range(count)])
+        return tf.convert_to_tensor(np.random.normal(0, 1, (count, self.latent_space_size)), dtype=self.input_dtype), \
+               tf.convert_to_tensor(np.array([[0] for i in range(count)]), dtype=self.output_dtype)
 
     def flip_coin(self, chance=0.5):
         return np.random.binomial(1, chance)
@@ -131,14 +134,17 @@ class GanCore(ModelCore, ABC):
 
                 if self.flip_coin():
                     # return real only
-                    yield data[0], data[1], [np.array([]).reshape([0] + list(data[0][0].shape[1:]))], np.array([]).reshape([0] + list(data[1].shape[1:])), \
+                    yield data[0], data[1], \
+                          [tf.convert_to_tensor(np.array([], dtype=self.input_dtype.as_numpy_dtype).reshape([0] + list(data[0][0].shape[1:])), dtype=self.input_dtype)], \
+                          tf.convert_to_tensor(np.array([], dtype=self.output_dtype.as_numpy_dtype).reshape([0] + list(data[1].shape[1:])), dtype=self.output_dtype), \
                           fake_seed_gen[0], fake_label_gen
 
                     real_idx = real_idx + 1
                 else:
                     # return fake only
                     fake_seed = gen_fake_seed[real_idx] if gen_fake_seed is not None else self.create_fake_seed(len_data)
-                    yield [np.array([]).reshape([0] + list(data[0][0].shape[1:]))], np.array([]).reshape([0] + list(data[1].shape[1:])), \
+                    yield [tf.convert_to_tensor(np.array([], dtype=self.input_dtype.as_numpy_dtype).reshape([0] + list(data[0][0].shape[1:])), dtype=self.input_dtype)], \
+                          tf.convert_to_tensor(np.array([], dtype=self.output_dtype.as_numpy_dtype).reshape([0] + list(data[1].shape[1:])), dtype=self.output_dtype), \
                           fake_seed[0], fake_seed[1], fake_seed_gen[0], fake_label_gen
             else:
                 data = gen_real[real_idx]
@@ -192,8 +198,8 @@ class GanCore(ModelCore, ABC):
 
     def _train_discriminator(self, input_real, label_real, input_fake_seed, label_fake):
         input_fake = self.generator.model(input_fake_seed, training=True) if input_fake_seed[0].shape[0] > 0 else input_fake_seed[0]
-        input_data = np.concatenate([input_real[0], input_fake])
-        label_data = np.concatenate([label_real, label_fake])
+        input_data = np.concatenate([input_real[0], input_fake], dtype=self._train_data_real.input_dtype.as_numpy_dtype)
+        label_data = np.concatenate([label_real, label_fake], dtype=self._train_data_real.output_dtype.as_numpy_dtype)
 
         return self.discriminator.model.train_on_batch([input_data], label_data)
 
@@ -207,3 +213,44 @@ class GanCore(ModelCore, ABC):
 
         return gan_loss
         # return self.model.train_on_batch(input_fake_seed, label_fake)
+
+
+class Util:
+    @staticmethod
+    def load_image(list_files, width=64, height=64, gray=False):
+        image_arr = []
+        for f in list_files:
+            if gray:
+                im = Image.open(f).convert("L")
+            else:
+                im = Image.open(f).convert("RGB")
+
+            re_width = width
+            re_height = height
+            if width <= 0:
+                re_width = im.width
+            if height <= 0:
+                re_height = im.height
+
+            im = im.resize((re_width, re_height))
+            im_np = np.asarray(im)
+            image_arr.append(im_np)
+
+        return image_arr
+
+    @staticmethod
+    def get_image_list(base_path, extension=".png"):
+        list_files = []
+        for file in os.listdir(base_path):
+            if file.endswith(extension):
+                list_files.append(os.path.join(base_path, file))
+
+        return list_files
+
+    @staticmethod
+    def image_normalization(np_arr):
+        return (np_arr - 127.5) / 127.5
+
+    @staticmethod
+    def to_image(np_one):
+        return (np_one - np.min(np_one)) / (np.max(np_one) - np.min(np_one))

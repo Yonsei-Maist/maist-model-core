@@ -63,8 +63,8 @@ class Dataset:
         self.__origins = None
         self.batch_size = batch_size
         self.__model = model
-        self.__input_dtype = input_dtype
-        self.__output_dtype = output_dtype
+        self.input_dtype = input_dtype
+        self.output_dtype = output_dtype
 
     def set(self, inputs, labels, origin_file=None):
         len_input = -1
@@ -83,12 +83,12 @@ class Dataset:
         self.__origins = origin_file
 
     def output_transform(self, item):
-        return tf.convert_to_tensor(item, dtype=self.__output_dtype)
+        return tf.convert_to_tensor(item, dtype=self.output_dtype)
 
     def input_transform(self, model, inputs):
 
         if model is None:
-            return [tf.convert_to_tensor(item, dtype=self.__input_dtype) for item in inputs]
+            return [tf.convert_to_tensor(item, dtype=self.input_dtype) for item in inputs]
         else:
             len_batch = len(inputs[0])
             batch_result = []
@@ -101,7 +101,7 @@ class Dataset:
 
                     batch_result[j].append(res[j])
 
-            return [tf.convert_to_tensor(item, dtype=self.__input_dtype) for item in batch_result]
+            return [tf.convert_to_tensor(item, dtype=self.input_dtype) for item in batch_result]
 
     def get_all(self):
         """
@@ -234,6 +234,9 @@ class ModelCore(metaclass=ABCMeta):
         self._train_data = Dataset(batch_size, self, input_dtype, output_dtype)
         self._test_data = Dataset(batch_size, self, input_dtype, output_dtype)
         self._validation_data = Dataset(batch_size, self, input_dtype, output_dtype)
+
+        self.input_dtype = input_dtype
+        self.output_dtype = output_dtype
         self.model = None
         self.batch_size = batch_size
         self._data_path = data_path

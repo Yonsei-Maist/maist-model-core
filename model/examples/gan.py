@@ -6,7 +6,7 @@ from model.examples.core import Example
 import tensorflow as tf
 import numpy as np
 
-from model.gan.core import GanCore, GanNetwork, Util
+from model.gan.core import GanCore, Util
 import subprocess
 import os
 
@@ -46,7 +46,9 @@ class GanExample(Example, GanCore):
 
     class Discriminator(ModelCore):
         def __init__(self):
-            super().__init__("", "./fashion_gen", loss=tf.keras.losses.BinaryCrossentropy(), optimizer=tf.keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.9), train_test_ratio=0)
+            super().__init__("", "./fashion_gen", loss=tf.keras.losses.BinaryCrossentropy(),
+                             optimizer=tf.keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.9), train_test_ratio=0,
+                             input_dtype=tf.float32, output_dtype=tf.float32)
 
         def build_model(self):
             input_ = tf.keras.Input([GanExample.WIDTH, GanExample.HEIGHT, GanExample.CHANNEL])
@@ -99,24 +101,25 @@ class DCGanExample(Example, GanCore):
     CHANNEL = 3
 
     class DiscriminatorLoss(tf.keras.losses.BinaryCrossentropy):
-        def __call__(self, y_true, y_pred):
+        def call(self, y_true, y_pred):
             noise_labels = GanCore.noisy_labels(y_true, 0.05)
+            noise_labels = tf.cast(noise_labels, dtype=tf.float32)
 
-            if GanCore.is_fake(y_true):
+            if tf.math.equal(GanCore.is_fake(y_true), True):
                 smooth_labels = GanCore.smooth_negative_labels(noise_labels)
             else:
                 smooth_labels = GanCore.smooth_positive_labels(noise_labels)
 
-            super().__call__(smooth_labels, y_pred)
+            return super().call(smooth_labels, y_pred)
 
     class GanLoss(tf.keras.losses.BinaryCrossentropy):
-        def __call__(self, y_true, y_pred):
-            if GanCore.is_fake(y_true):
+        def call(self, y_true, y_pred):
+            if tf.math.equal(GanCore.is_fake(y_true), True):
                 smooth_labels = GanCore.smooth_negative_labels(y_true)
             else:
                 smooth_labels = GanCore.smooth_positive_labels(y_true)
 
-            super().__call__(smooth_labels, y_pred)
+            return super().call(smooth_labels, y_pred)
 
     class Discriminator(ModelCore):
 

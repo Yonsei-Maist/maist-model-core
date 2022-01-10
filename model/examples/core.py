@@ -2,7 +2,7 @@ from abc import ABCMeta, abstractmethod
 import tensorflow as tf
 import numpy as np
 
-from model.core import ModelCore, Net
+from model.core import ModelCore
 
 
 class Example(metaclass=ABCMeta):
