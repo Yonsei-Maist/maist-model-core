@@ -17,7 +17,7 @@ class Example(metaclass=ABCMeta):
 
 class ClassifierExample(Example, ModelCore):
     def __init__(self):
-        ModelCore.__init__(self, "")
+        ModelCore.__init__(self, "", "./fashion")
 
     def build_model(self):
         input_ = tf.keras.Input([28, 28])
@@ -45,16 +45,5 @@ class ClassifierExample(Example, ModelCore):
         return fashion_mnist.load_data()
 
     def run(self):
-        net = Net("FashionMNIST", "./fashion/", self)
-        net.train(epoch=1000)
-        best_loss = 1000
-        best_loss_index = -1
-
-        for i in range(10):
-            idx = (i + 1) * 100
-            loss = net.test(idx)
-            if best_loss > loss:
-                best_loss = loss
-                best_loss_index = idx
-
-        print("best loss: ", best_loss, " idx: ", best_loss_index)
+        self.train(epoch=1000, save_each_epoch=1)
+        self.test()

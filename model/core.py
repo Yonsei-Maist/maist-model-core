@@ -15,6 +15,13 @@ class LOSS(Enum):
     MAE = 6
 
 
+class METRICS(Enum):
+    ACCURACY = 1,
+    CATEGORICAL_ACCURACY = 2,
+    SPARSE_CATEGORICAL_ACCURACY = 3,
+    MEAN = 4
+
+
 class AvgLogger:
     def __init__(self, avg_list: list):
         self.__avg_type_list = avg_list
@@ -49,27 +56,6 @@ class AvgLogger:
         return [self.__avg_list[i].result().numpy() for i in range(len(self.__avg_type_list))]
 
 
-class LossFunction:
-    def __init__(self, loss: LOSS):
-        self.__lambda = None
-        if loss == LOSS.MSE:
-            self.__lambda = lambda labels, outputs, axis, **kwargs: tf.keras.losses.MeanSquaredError()(labels, outputs)
-        elif loss == LOSS.COSINE_SIMILARITY:
-            self.__lambda = lambda labels, outputs, axis, **kwargs: tf.keras.losses.CosineSimilarity(axis=axis)(labels, outputs)
-        elif loss == LOSS.BINARY_CROSSENTROPY:
-            self.__lambda = lambda labels, outputs, axis, **kwargs: tf.keras.losses.BinaryCrossentropy(axis=axis,
-                                                                                                        from_logits=kwargs["from_logits"] if "from_logits" in kwargs else False)(labels, outputs)
-        elif loss == LOSS.SPARSE_CATEGORICAL_CROSSENTROPY:
-            self.__lambda = lambda labels, outputs, axis, **kwargs: tf.keras.losses.SparseCategoricalCrossentropy(axis=axis)(labels, outputs)
-        elif loss == LOSS.MAE:
-            self.__lambda = lambda labels, outputs, axis, **kwargs: tf.keras.losses.MeanAbsoluteError()(labels, outputs)
-        else:  # default
-            self.__lambda = lambda labels, outputs, axis, **kwargs: tf.keras.losses.CategoricalCrossentropy(axis=axis)(labels, outputs)
-
-    def calculate(self, labels, outputs, axis, **kwargs):
-        return self.__lambda(labels, outputs, axis, **kwargs)
-
-
 class Dataset:
     def __init__(self, batch_size, model=None, input_dtype=tf.float32, output_dtype=tf.float32):
         self.__inputs = None
@@ -96,38 +82,53 @@ class Dataset:
         self.__labels = labels
         self.__origins = origin_file
 
+    def output_transform(self, item):
+        return tf.convert_to_tensor(item, dtype=self.__output_dtype)
+
+    def input_transform(self, model, inputs):
+
+        if model is None:
+            return [tf.convert_to_tensor(item, dtype=self.__input_dtype) for item in inputs]
+        else:
+            len_batch = len(inputs[0])
+            batch_result = []
+
+            for i in range(len_batch):
+                res = model.data_transform([item[i] for item in inputs])
+                for j in range(len(res)):
+                    if len(batch_result) <= j:
+                        batch_result.append([])
+
+                    batch_result[j].append(res[j])
+
+            return [tf.convert_to_tensor(item, dtype=self.__input_dtype) for item in batch_result]
+
+    def get_all(self):
+        """
+        use in tensorflow
+        :return: all data
+        """
+        if len(self.__labels) == 1:
+            return self.input_transform(self.__model, self.__inputs), self.output_transform(self.__labels[0])
+        else:
+            return self.input_transform(self.__model, self.__inputs), [self.output_transform(item) for item in self.__labels]
+
     def get(self):
+        """
+        use in pytorch
+        :return: iteration data
+        """
         iter = math.ceil(len(self) / self.batch_size)
-
-        output_transform = lambda item: tf.convert_to_tensor(item, dtype=self.__output_dtype)
-
-        def transform(model, inputs):
-
-            if model is None:
-                return [tf.convert_to_tensor(item, dtype=self.__input_dtype) for item in inputs]
-            else:
-                len_batch = len(inputs[0])
-                batch_result = []
-
-                for i in range(len_batch):
-                    res = model.data_transform([item[i] for item in inputs])
-                    for j in range(len(res)):
-                        if len(batch_result) <= j:
-                            batch_result.append([])
-
-                        batch_result[j].append(res[j])
-
-                return [tf.convert_to_tensor(item, dtype=self.__input_dtype) for item in batch_result]
 
         for i in range(iter):
             raw_input = [item[i * self.batch_size: i * self.batch_size + self.batch_size] for item in
                        self.__inputs]
             if len(self.__labels) == 1:
-                yield transform(self.__model, raw_input), \
-                      output_transform(self.__labels[0][i * self.batch_size: i * self.batch_size + self.batch_size])
+                yield self.input_transform(self.__model, raw_input), \
+                      self.output_transform(self.__labels[0][i * self.batch_size: i * self.batch_size + self.batch_size])
             else:
-                yield transform(self.__model, raw_input), \
-                      [output_transform(item[i * self.batch_size: i * self.batch_size + self.batch_size]) for item in self.__labels]
+                yield self.input_transform(self.__model, raw_input), \
+                      [self.output_transform(item[i * self.batch_size: i * self.batch_size + self.batch_size]) for item in self.__labels]
 
     def get_origin(self):
         if self.__origins is None:
@@ -161,6 +162,7 @@ class DatasetFactory:
         item_one = data_all[0]
 
         data_train = []
+        data_validation = []
         data_test = []
 
         if is_classify:
@@ -218,37 +220,39 @@ class DatasetFactory:
 
 
 class ModelCore(metaclass=ABCMeta):
-    def __init__(self, data_path, batch_size=64, avg_list=['loss'], loss=LOSS.CATEGORICAL_CROSSENTROPY,
-                 train_test_ratio=0.8, is_classify=False, input_dtype=tf.float32, output_dtype=tf.float32):
+    def __init__(self, data_path, save_path, batch_size=64, loss=tf.keras.losses.CategoricalCrossentropy(), metrics=None,
+                 optimizer=None, lr=0.001,
+                 train_test_ratio=0.8, validation_ratio=0.1, is_classify=False, loss_weights=None,
+                 input_dtype=tf.float32, output_dtype=tf.float32):
+
+        if metrics is None:
+            metrics = [tf.keras.metrics.CategoricalAccuracy()]
+
+        if optimizer is None:
+            optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+
         self._train_data = Dataset(batch_size, self, input_dtype, output_dtype)
         self._test_data = Dataset(batch_size, self, input_dtype, output_dtype)
+        self._validation_data = Dataset(batch_size, self, input_dtype, output_dtype)
         self.model = None
         self.batch_size = batch_size
         self._data_path = data_path
-        self.avg_logger = AvgLogger(avg_list)
+        self._save_path = save_path
         self._data_all = None
         self._train_test_ratio = train_test_ratio
+        self._validation_ratio = validation_ratio
         self._is_classify = is_classify
+        self.loss_weights = loss_weights
 
         self.is_multi_output = isinstance(loss, list)
-
-        if self.is_multi_output:
-            self._loss_function_list = [LossFunction(loss_function) for loss_function in loss]
-        else:
-            self._loss_function = LossFunction(loss)
+        self.loss = loss
+        self.metrics = metrics
+        self.optimizer = optimizer
 
         self.read_data()
         self.make_dataset()
         self.build_model()
-
-    def calculate_loss_function(self, labels, outputs, axis, **kwargs):
-        if self.is_multi_output:
-            if len(self._loss_function_list) != len(labels) and len(labels) != len(outputs):
-                raise Exception("unmatch length of labels and outputs.")
-            return [loss_function.calculate(labels[i], outputs[i], axis, **kwargs) for i, loss_function in
-                    enumerate(self._loss_function_list)]
-        else:
-            return self._loss_function.calculate(labels, outputs, axis, **kwargs)
+        self.compile_model()
 
     def check_integer_string(self, int_value):
         try:
@@ -272,7 +276,14 @@ class ModelCore(metaclass=ABCMeta):
 
     def make_dataset(self):
         if self._data_all is not None and len(self._data_all) > 0:
-            self._train_data, self._test_data = DatasetFactory.make_dataset(self._train_data, self._test_data, self._data_all, self._train_test_ratio, self._is_classify)
+            self._train_data, self._test_data = \
+                DatasetFactory.make_dataset(self._train_data, self._test_data,
+                                            self._data_all,
+                                            self._train_test_ratio,
+                                            self._is_classify)
+
+    def compile_model(self):
+        self.model.compile(optimizer=self.optimizer, loss=self.loss, metrics=self.metrics, loss_weights=self.loss_weights)
 
     def data_transform(self, item):
         return item
@@ -283,147 +294,36 @@ class ModelCore(metaclass=ABCMeta):
         """
         pass
 
+    def train(self, epoch=1000, save_each_epoch=100, callbacks=None):
+        x_train, y_train = self._train_data.get_all()
 
-class Net:
-    def __init__(self, module_name, base_path, model_core: ModelCore):
-        """
-        :param model_core: ModelCore instance
-        """
-        self.name = module_name
-        self._base_path = base_path
-        self._model_core = model_core
+        must_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath=os.path.join(self._save_path, 'ckpt_{epoch:04d}.tf'),
+            save_freq='epoch',
+            monitor='loss',
+            save_weights_only=True)
 
-    def get_value_train_step(self, outputs, labels):
-        """
-        overload if you want to calculate other
-        :param outputs: predict value from model
-        :param labels: values of label (real answer)
-        :return: calculated values list
-        """
-        return []
+        callback_list = [must_callback]
 
-    def save_when(self, epoch, result_values):
-        """
-        condition when save
-        :param epoch: current epoch
-        :param result_values: current loss and logger result value
-        :return: true or false
-        """
-        return False
+        if callbacks is not None:
+            callback_list.extend(callbacks)
 
-    def train(self, pretrained_module_name=None, pretrained_module_index=None, epoch=10000, lr=0.001):
-        self._model_core.build_model()
-        if pretrained_module_name is not None and pretrained_module_index is not None:
-            self._model_core.model.load_weights(os.path.join(self._base_path,
-                                                './checkpoints/{0}_{1}.tf'.format(pretrained_module_name, pretrained_module_index)))
-        model = self._model_core.model
-        optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+        self.model.fit(x_train, y_train, batch_size=self.batch_size, epochs=epoch,
+                       validation_split=self._validation_ratio, callbacks=callback_list)
 
-        train_data = self._model_core.get_train_data()
+    def test(self, epoch=None):
+        x_test, y_test = self._test_data.get_all()
 
-        for i in range(epoch):
-            self._model_core.avg_logger.refresh()
-            gen = list(train_data.get())
+        if epoch is not None:
+            self.model.load_weights(os.path.join(self._save_path, "ckpt_{epoch:04d}.tf".format(epoch=epoch)))
 
-            for data in gen:
-                inputs = data[0]
-                labels = data[1]
-
-                with tf.GradientTape() as tape:
-                    outputs = model(inputs, training=True)
-                    loss = self._model_core.calculate_loss_function(labels, outputs, axis=1)
-
-                values = self.get_value_train_step(outputs, labels)
-
-                grads = tape.gradient(loss, model.trainable_variables)  # calculate gradients
-                optimizer.apply_gradients(zip(grads, model.trainable_variables))  # update gradients
-
-                if isinstance(loss, list):
-                    self._model_core.avg_logger.update_state(loss + values)
-                else:
-                    self._model_core.avg_logger.update_state([loss] + values)
-
-            log_result = self._model_core.avg_logger.result()
-            print('Epoch: {} {}'.format(i, log_result))
-
-            # save weight every 100 epochs
-            if (i % 100 == 0 and i != 0) or self.save_when(i, self._model_core.avg_logger.result_value()):
-                model.save_weights(os.path.join(self._base_path,
-                                                './checkpoints/{}_{}.tf'.format(self.name, i)))
-
-    def test(self, index):
-        self._model_core.build_model()
-        if index > -1:
-            self._model_core.model.load_weights(os.path.join(self._base_path,
-                                                             './checkpoints/{}_{}.tf'.format(self.name, index)))
+            self.model.evaluate(x_test, y_test, batch_size=self.batch_size)
         else:
-            self._model_core.load_weight()
+            file_list = os.listdir(self._save_path)
+            for file in file_list:
+                idx = file.find('.tf')
+                if file.find('.tf') > -1:
+                    sub_file = file[:idx + 4]
+                    self.model.load_weights(os.path.join(self._save_path, sub_file))
 
-        model = self._model_core.model
-        test_data = self._model_core.get_test_data()
-
-        accuracy_logger = AvgLogger(['accuracy'])
-        accuracy_metrics = None
-
-        self._model_core.avg_logger.refresh()
-        accuracy_logger.refresh()
-        all_outputs = []
-        gen = list(test_data.get())
-        for data in gen:
-            inputs = data[0]
-            labels = data[1]
-            outputs = model(inputs, training=False)
-
-            loss = self._model_core.calculate_loss_function(labels, outputs, axis=1)
-            new_accuracy_metrics = tf.keras.metrics.Accuracy()
-
-            new_accuracy_metrics.update_state(labels, outputs)
-
-            if accuracy_metrics is not None:
-                new_accuracy_metrics.merge_state([accuracy_metrics])
-
-            accuracy_metrics = new_accuracy_metrics
-
-            values = self.get_value_train_step(outputs, labels)
-
-            if isinstance(loss, list):
-                self._model_core.avg_logger.update_state(loss + values)
-            else:
-                self._model_core.avg_logger.update_state([loss] + values)
-
-            all_outputs.extend(outputs)
-
-        log_result = self._model_core.avg_logger.result_value()
-
-        model.reset_states()
-
-        return log_result, all_outputs, accuracy_metrics.result().numpy()
-
-    def predict(self, index, data):
-        self._model_core.build_model()
-
-        if index > -1:
-            self._model_core.model.load_weights(os.path.join(self._base_path,
-                                                             './checkpoints/{}_{}.tf'.format(self.name, index)))
-        else:
-            self._model_core.load_weight()
-
-        return self._model_core.model(data, training=False)
-
-    def get_test_result(self, index):
-
-        avg_loss, res = self.test(index)  # means test all of data using {index}'th checkpoint
-
-        ldl_c_d_for_graph = []
-        data_for_graph = []
-        for i in range(len(res)):
-            predict_index = int(tf.math.argmax(res[i]))
-            ldl_c_d_for_graph.append(predict_index)
-
-        gen = list(self._model_core.get_test_data().get())
-
-        for data in gen:
-            for i in range(len(data[1])):
-                data_for_graph.append(int(tf.math.argmax(data[1][i])))
-
-        return data_for_graph, ldl_c_d_for_graph
+                    self.model.evaluate(x_test, y_test, batch_size=self.batch_size)

@@ -22,7 +22,7 @@ class GanExample(Example, GanCore):
         NUM_BLOCK = 4
 
         def __init__(self):
-            super().__init__("", loss=LOSS.BINARY_CROSSENTROPY, train_test_ratio=0)
+            super().__init__("", "./fashion_gen", loss=tf.keras.losses.BinaryCrossentropy(from_logits=True), train_test_ratio=0)
 
         def build_model(self):
             block_size = GanExample.Generator.BLOCK_STARTING_SIZE
@@ -46,7 +46,7 @@ class GanExample(Example, GanCore):
 
     class Discriminator(ModelCore):
         def __init__(self):
-            super().__init__("", loss=LOSS.BINARY_CROSSENTROPY, train_test_ratio=0)
+            super().__init__("", "./fashion_gen", loss=tf.keras.losses.BinaryCrossentropy(), optimizer=tf.keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.9), train_test_ratio=0)
 
         def build_model(self):
             input_ = tf.keras.Input([GanExample.WIDTH, GanExample.HEIGHT, GanExample.CHANNEL])
@@ -63,8 +63,9 @@ class GanExample(Example, GanCore):
             self._data_all = []
 
     def __init__(self):
-        GanCore.__init__(self, "", loss=LOSS.BINARY_CROSSENTROPY, batch_size=128, discriminator=GanExample.Discriminator(), generator=GanExample.Generator())
-        self.net = GanNetwork("FashionGenerator", "./fashion_gen/", self)
+        GanCore.__init__(self, "", "./fashion_gen", loss=tf.keras.losses.BinaryCrossentropy(), batch_size=128,
+                         discriminator=GanExample.Discriminator(), generator=GanExample.Generator(),
+                         optimizer=tf.keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.9))
 
     def load_data(self):
         fashion_mnist = tf.keras.datasets.fashion_mnist
@@ -73,8 +74,8 @@ class GanExample(Example, GanCore):
 
     def run(self, index=1, train=True, seed=None):
         if train:
-            self.net.train(epoch=60000, lr=0.0002)
-        return self.net.test(index, seed=seed)
+            self.train(epoch=60000)
+        return self.test(index, seed=seed)
 
     def read_data(self):
         (train_images, train_labels), (test_images, test_labels) = self.load_data()
@@ -97,10 +98,30 @@ class DCGanExample(Example, GanCore):
     HEIGHT = 64
     CHANNEL = 3
 
+    class DiscriminatorLoss(tf.keras.losses.BinaryCrossentropy):
+        def __call__(self, y_true, y_pred):
+            noise_labels = GanCore.noisy_labels(y_true, 0.05)
+
+            if GanCore.is_fake(y_true):
+                smooth_labels = GanCore.smooth_negative_labels(noise_labels)
+            else:
+                smooth_labels = GanCore.smooth_positive_labels(noise_labels)
+
+            super().__call__(smooth_labels, y_pred)
+
+    class GanLoss(tf.keras.losses.BinaryCrossentropy):
+        def __call__(self, y_true, y_pred):
+            if GanCore.is_fake(y_true):
+                smooth_labels = GanCore.smooth_negative_labels(y_true)
+            else:
+                smooth_labels = GanCore.smooth_positive_labels(y_true)
+
+            super().__call__(smooth_labels, y_pred)
+
     class Discriminator(ModelCore):
 
         def __init__(self):
-            super().__init__("", loss=LOSS.BINARY_CROSSENTROPY, train_test_ratio=0)
+            super().__init__("", "", loss=DCGanExample.DiscriminatorLoss(), train_test_ratio=0)
 
         def build_model(self):
             input_ = tf.keras.Input([DCGanExample.WIDTH, DCGanExample.HEIGHT, DCGanExample.CHANNEL])
@@ -122,21 +143,11 @@ class DCGanExample(Example, GanCore):
         def read_data(self):
             self._data_all = []
 
-        def calculate_loss_function(self, labels, outputs, axis, **kwargs):
-            # print(outputs.numpy()[0][0])
-            noise_labels = GanCore.noisy_labels(labels, 0.05)
-
-            if GanCore.is_fake(labels):
-                smooth_labels = GanCore.smooth_negative_labels(noise_labels)
-            else:
-                smooth_labels = GanCore.smooth_positive_labels(noise_labels)
-            return super().calculate_loss_function(smooth_labels, outputs, axis, **kwargs)
-
     class Generator(ModelCore):
         LATENT_SPACE_SIZE = 100
 
         def __init__(self):
-            super().__init__("", loss=LOSS.BINARY_CROSSENTROPY, train_test_ratio=0)
+            super().__init__("", "", loss=LOSS.BINARY_CROSSENTROPY, train_test_ratio=0)
 
         def build_model(self):
             input_ = tf.keras.Input([DCGanExample.Generator.LATENT_SPACE_SIZE])
@@ -162,11 +173,9 @@ class DCGanExample(Example, GanCore):
 
     def __init__(self, data_path, load_data_ratio=.2):
         self._load_data_ratio = load_data_ratio
-        GanCore.__init__(self, data_path, loss=LOSS.BINARY_CROSSENTROPY, batch_size=128,
+        GanCore.__init__(self, data_path, "./dcgan", loss=DCGanExample.GanLoss(), optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4, beta_1=0.2), batch_size=128,
                          train_test_ratio=1., discriminator=DCGanExample.Discriminator(),
                          generator=DCGanExample.Generator(), flip_coin=True)
-
-        self.net = GanNetwork("DCGanExample", "./dcgan", self)
 
     def load_data(self):
         if not os.path.exists(os.path.join(self._data_path, "data/church_outdoor_train_lmdb/expanded")):
@@ -186,8 +195,8 @@ class DCGanExample(Example, GanCore):
 
     def run(self, train=True, index=1, seed=None):
         if train:
-            self.net.train(epoch=501, lr=1e-4, beta_1=0.2)
-        return self.net.test(index, seed)
+            self.train(epoch=501)
+        return self.test(index, seed)
 
     def read_data(self):
         npy_path = os.path.join(self._data_path, "data/train.npy")
@@ -201,16 +210,8 @@ class DCGanExample(Example, GanCore):
         for i in range(int(len(datas) * self._load_data_ratio)):
             self._data_all.append({"input": np.reshape(datas[i], (DCGanExample.WIDTH, DCGanExample.HEIGHT, DCGanExample.CHANNEL)), "output": [1]})
 
-    def calculate_loss_function(self, labels, outputs, axis, **kwargs):
-        if GanCore.is_fake(labels):
-            smooth_labels = GanCore.smooth_negative_labels(labels)
-        else:
-            smooth_labels = GanCore.smooth_positive_labels(labels)
 
-        return super().calculate_loss_function(smooth_labels, outputs, axis, **kwargs)
-
-
-class Pix2pixExample(Example, GanCore, GanNetwork):
+class Pix2pixExample(Example, GanCore):
     WIDTH = 256
     HEIGHT = 256
     CHANNEL = 3
@@ -218,7 +219,8 @@ class Pix2pixExample(Example, GanCore, GanNetwork):
     class Discriminator(ModelCore):
 
         def __init__(self):
-            super().__init__("", loss=LOSS.BINARY_CROSSENTROPY, train_test_ratio=0)
+            super().__init__("", "./pix2pix", loss=tf.keras.losses.MeanSquaredError(),
+                             train_test_ratio=0, optimizer=tf.keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5, decay=1e-5))
 
         def build_model(self):
             input_1 = tf.keras.Input([Pix2pixExample.WIDTH, Pix2pixExample.HEIGHT, Pix2pixExample.CHANNEL])
@@ -246,7 +248,8 @@ class Pix2pixExample(Example, GanCore, GanNetwork):
         LATENT_SPACE_SIZE = 100
 
         def __init__(self):
-            super().__init__("", loss=LOSS.BINARY_CROSSENTROPY, train_test_ratio=0)
+            super().__init__("", "./pix2pix", loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
+                             train_test_ratio=0, optimizer=tf.keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5, decay=1e-5))
 
         def build_model(self):
             input_ = tf.keras.Input([Pix2pixExample.WIDTH, Pix2pixExample.HEIGHT, Pix2pixExample.CHANNEL])
@@ -317,11 +320,9 @@ class Pix2pixExample(Example, GanCore, GanNetwork):
         self._load_data_ratio = load_data_ratio
         self._loss_weight = [1, 100]
 
-        GanCore.__init__(self, data_path, loss=LOSS.BINARY_CROSSENTROPY, batch_size=2,
-                         train_test_ratio=1., discriminator=Pix2pixExample.Discriminator(),
-                         generator=Pix2pixExample.Generator())
-
-        GanNetwork.__init__(self, "Pic2picExample", "./pic2pic/", self)
+        GanCore.__init__(self, data_path, "./pix2pix", loss=[tf.keras.losses.MeanSquaredError(), tf.keras.losses.MeanAbsoluteError()], batch_size=2,
+                         train_test_ratio=1., discriminator=Pix2pixExample.Discriminator(), loss_weights=[1, 100],
+                         generator=Pix2pixExample.Generator(), optimizer=tf.keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5))
 
     def run(self, index=1, train=True, seed=None):
         if train:
@@ -366,34 +367,13 @@ class Pix2pixExample(Example, GanCore, GanNetwork):
             self._data_all.append({'input': origin_a_item, 'output': np.ones((int(Pix2pixExample.WIDTH / 2**4), int(Pix2pixExample.HEIGHT / 2**4), 1))})
             self._data_fake_seed.append({'input': origin_b_item, 'output': np.zeros((int(Pix2pixExample.WIDTH / 2**4), int(Pix2pixExample.HEIGHT / 2**4), 1))})
 
-    def _train_discriminator(self, optimizer, input_real, label_real, input_fake_seed, label_fake):
-        fake_a = self.generator.model(input_fake_seed[0], training=True)
+    def _train_discriminator(self, input_real, label_real, input_fake_seed, label_fake):
+        fake_a = self.generator.model.predict(input_fake_seed[0])
 
-        with tf.GradientTape() as tape:
-            output_real = self.discriminator.model([input_real[0], input_fake_seed[0]], training=True)
-            output_fake = self.discriminator.model([fake_a, input_fake_seed[0]], training=True)
+        loss_real = self.discriminator.model.train_on_batch([input_real[0], input_fake_seed[0]], label_real)
+        loss_fake = self.discriminator.model.train_on_batch([fake_a, input_fake_seed[0]], label_fake)
 
-            loss_real = self.discriminator.calculate_loss_function(label_real, output_real, axis=1, from_logits=True)
-            loss_fake = self.discriminator.calculate_loss_function(label_fake, output_fake, axis=1, from_logits=True)
+        return 0.5 * tf.math.add(loss_real, loss_fake)
 
-            loss = 0.5 * tf.math.add(loss_real, loss_fake)
-
-            grad = tape.gradient(loss, self.discriminator.model.trainable_variables)
-            optimizer.apply_gradients(zip(grad, self.discriminator.model.trainable_variables))
-
-        return loss
-
-    def _train_generator(self, optimizer, input_real, label_real, input_fake_seed, label_fake):
-        with tf.GradientTape(persistent=True) as tape:
-            output = self.model([input_real[0], input_fake_seed[0]], training=True)
-
-            loss = self.calculate_loss_function(label_real, output[0], axis=1, from_logits=True)
-            l1_loss = tf.reduce_mean(tf.abs(input_real[0] - output[1]))
-            loss_1 = loss * self._loss_weight[0]
-            loss_2 = l1_loss * self._loss_weight[1]
-
-            loss_total = loss_1 + loss_2
-            grad = tape.gradient(loss_total, self.generator.model.trainable_variables)
-            optimizer.apply_gradients(zip(grad, self.generator.model.trainable_variables))
-
-        return loss_total
+    def _train_generator(self, input_real, label_real, input_fake_seed, label_fake):
+        return self.model.train_on_batch([input_real[0], input_fake_seed[0]], [label_real, input_real[0]])

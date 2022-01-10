@@ -1,6 +1,5 @@
 from ko.character.spelling import HanJaMo
 
-from model.core import LOSS, Net
 from model.examples.core import Example
 from model.nlp.char import CharRNN
 
@@ -15,7 +14,7 @@ class TypoClassifier(Example, CharRNN):
         self._default_set = default_set
         if use_han_ja_mo:
             self._han = HanJaMo()
-        super().__init__(data_path, loss=LOSS.CATEGORICAL_CROSSENTROPY, is_classify=True)
+        super().__init__(data_path, "./", is_classify=True)
 
         print("train data:", len(self._train_data))
         print("test data:", len(self._test_data))
@@ -81,6 +80,4 @@ class TypoClassifier(Example, CharRNN):
         pass
 
     def run(self):
-        net = Net("typo", "./", self)
-
-        net.train()
+        self.train()
