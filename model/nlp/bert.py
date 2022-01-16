@@ -24,13 +24,13 @@ class PretrainedBertClassifier(tf.keras.Model):
 
 
 class PretrainedBert(ModelCore):
-    def __init__(self, data_path, max_length, num_classes, pretrained_model_name):
+    def __init__(self, data_path, save_path, max_length, num_classes, pretrained_model_name):
         self.max_length = max_length
         self.num_classes = num_classes
         self.bert = TFBertModel.from_pretrained(pretrained_model_name, from_pt=True)
         self.tokenizer = BertTokenizer.from_pretrained(pretrained_model_name)
 
-        ModelCore.__init__(self, data_path=data_path, loss=LOSS.CATEGORICAL_CROSSENTROPY, train_test_ratio=0.8,
+        ModelCore.__init__(self, data_path=data_path, save_path=save_path, loss=LOSS.CATEGORICAL_CROSSENTROPY, train_test_ratio=0.8,
                            is_classify=True, input_dtype=tf.int32, batch_size=256)
 
     def build_model(self):

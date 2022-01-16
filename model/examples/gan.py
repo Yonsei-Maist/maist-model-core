@@ -75,6 +75,7 @@ class GanExample(Example, GanCore):
         return fashion_mnist.load_data()
 
     def run(self, index=1, train=True, seed=None):
+        asd = {1, '22'}.to
         if train:
             self.train(epoch=60000)
         return self.test(index, seed=seed)
